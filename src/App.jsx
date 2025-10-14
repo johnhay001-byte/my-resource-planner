@@ -268,7 +268,7 @@ const ProjectModal = ({ isOpen, onClose, onUpdate, data, projectData, allPeople 
     };
 
     const handleSubmit = () => {
-        if (projectName && programId) {
+        if (projectName && (programId || isEditMode)) {
             if (isEditMode) {
                 onUpdate({type: 'UPDATE_PROJECT', project: { ...projectData, name: projectName, brief: projectBrief }});
             } else {
@@ -709,7 +709,8 @@ export default function App() {
             setDetailedPerson(null);
         } else {
             setSelection({type: 'person', id: personId});
-            setDetailedPerson(findPersonById(personId));
+            const personData = allPeople.find(p => p.personId === personId)
+            setDetailedPerson(personData);
         }
     };
 
@@ -732,47 +733,114 @@ export default function App() {
     }, [selection, data, activeFilter, viewMode]);
     
     const handleUpdate = (action) => {
-        let newState = JSON.parse(JSON.stringify(data));
-        
-        const findPersonInTree = (personId, nodes) => {
-            for (const node of nodes) {
-                if(node.personId === personId) return node;
-                if(node.children) {
-                    const found = findPersonInTree(personId, node.children);
-                    if(found) return found;
+        setData(currentData => {
+            let newState = JSON.parse(JSON.stringify(currentData));
+            
+            const findAndModifyPerson = (nodes, personId, updateFn) => {
+                for(let i=0; i < nodes.length; i++) {
+                    if (nodes[i].type === 'person' && nodes[i].personId === personId) {
+                        nodes[i] = updateFn(nodes[i]);
+                        return true;
+                    }
+                    if (nodes[i].children && findAndModifyPerson(nodes[i].children, personId, updateFn)) {
+                        return true;
+                    }
                 }
-            }
-            return null;
-        }
+                return false;
+            };
 
-        switch (action.type) {
-            case 'ASSIGN_PERSON': {
-                const { personId, projectId, allocation, startDate, endDate } = action.assignment;
-                const personToAssign = allPeople.find(p => p.personId === personId);
-                
-                if (personToAssign) {
+            switch (action.type) {
+                case 'ASSIGN_PERSON': {
+                    const { personId, projectId, allocation, startDate, endDate } = action.assignment;
+                    const personMasterCopy = allPeople.find(p => p.personId === personId);
+                    
+                    if (personMasterCopy) {
+                         findAndModifyPerson(newState, personId, (person) => {
+                            const newAssignments = [...(person.assignments || []).filter(a => a.projectId !== projectId), { projectId, allocation, startDate, endDate }];
+                            return {...person, assignments: newAssignments };
+                        });
+
+                        let projectNode = null;
+                        const findProject = (nodes) => {
+                           for(const node of nodes) {
+                               if(node.id === projectId) { projectNode = node; return; }
+                               if(node.children) findProject(node.children);
+                           }
+                        }
+                        findProject(newState);
+
+                        if (projectNode && !projectNode.children.some(p => p.personId === personId)) {
+                             projectNode.children.push(allPeople.find(p => p.personId === personId));
+                        }
+                    }
+                    break;
+                }
+                case 'UNASSIGN_PERSON': {
+                    const { personId, projectId } = action;
+                    
+                    findAndModifyPerson(newState, personId, (person) => {
+                        const newAssignments = (person.assignments || []).filter(a => a.projectId !== projectId);
+                        return {...person, assignments: newAssignments};
+                    });
+                    
                     let projectNode = null;
                     const findProject = (nodes) => {
-                       for(const node of nodes) {
+                        for(const node of nodes) {
                            if(node.id === projectId) { projectNode = node; return; }
                            if(node.children) findProject(node.children);
-                       }
+                        }
                     }
                     findProject(newState);
 
                     if (projectNode) {
-                        const updatedPersonRef = { ...personToAssign, assignments: [...(personToAssign.assignments || []), { projectId, allocation, startDate, endDate }] };
-                        if (!projectNode.children.some(p => p.personId === personId)) {
-                             projectNode.children.push(updatedPersonRef);
-                        }
+                        projectNode.children = projectNode.children.filter(p => p.personId !== personId);
                     }
+                    break;
                 }
-                break;
+                 case 'ADD_CLIENT':
+                    if (action.name) newState.push({ id: `client-${Date.now()}`, name: action.name, type: 'client', strategicFocus: 'New Client', children: [] });
+                    break;
+                case 'ADD_PROGRAM':
+                     const clientForProgram = newState.find(c => c.id === action.clientId);
+                     if (action.name && clientForProgram) clientForProgram.children.push({ id: `prog-${Date.now()}`, name: action.name, type: 'program', children: [] });
+                    break;
+                case 'ADD_PROJECT':
+                    let programForProject = null;
+                    for (const client of newState) { programForProject = client.children.find(p => p.id === action.programId); if (programForProject) break; }
+                    if (programForProject) programForProject.children.push({ id: `proj-${Date.now()}`, name: action.name, type: 'project', brief: action.brief, children: [] });
+                    break;
+                case 'UPDATE_PROJECT':
+                    const findAndReplace = (nodes) => {
+                        for (let i = 0; i < nodes.length; i++) {
+                            if (nodes[i].type === 'project' && nodes[i].id === action.project.id) {
+                                nodes[i] = { ...nodes[i], name: action.project.name, brief: action.project.brief };
+                                return true;
+                            }
+                            if (nodes[i].children && findAndReplace(nodes[i].children)) return true;
+                        }
+                        return false;
+                    };
+                    findAndReplace(newState);
+                    break;
+                case 'DELETE_NODE':
+                    const pathParts = action.path.split('.');
+                    let parent = { children: newState };
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                        parent = parent.children[pathParts[i]];
+                    }
+                    const finalKey = pathParts[pathParts.length - 1];
+                    if (parent && parent.children) {
+                        parent.children.splice(finalKey, 1);
+                    }
+                    break;
+                default: break;
             }
-            // ... Other cases
-            default: break;
+            return newState;
+        });
+        
+        if (modalState && modalState.project) {
+             setModalState(null);
         }
-        setData(newState);
      };
     
     const displayedData = activeFilter === 'all' ? data : data.filter(client => client.id === activeFilter);
@@ -784,7 +852,6 @@ export default function App() {
         } else if (node.type === 'person') {
             handlePersonSelect(node.personId);
         }
-        // Could add more drill-down logic here for projects, etc.
     };
 
     return (
