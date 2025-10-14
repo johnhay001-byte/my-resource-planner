@@ -1,59 +1,137 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 
-// --- Helper Data & SVG Icons ---
-// Client objects now have a 'strategicFocus' for the enrichment feature.
-const initialData = [
-    {
-        id: 'client-1', name: 'Electrolux', type: 'client', strategicFocus: 'sustainability and family-centric design', children: [
-            {
-                id: 'prog-1', name: 'Q4 "Ignite" Brand Campaign', type: 'program', children: [
+// --- Data Processing from CSV ---
+// This section processes the raw CSV data into the structured format the application needs.
+
+const csvData = `Full Name,Employee email,Legal Last Name,Legal First Name,Business Title,TARGET Omnicom Job level,Employee Type,Client_Primary,Function,Line Manager Name,Line Manager Email,People leader level I,People leader level II,People leader level III,People leader level IV
+Adena Phillips,adena.phillips@omc.com,Phillips,Adena,Account Director,6-Manager/Specialized professional,,Centrica,Account Management,Donna Edgecombe,donna.edgecombe@omc.com,Donna Edgecombe,,Michael Turnbull,Mariusz Urbanczyk
+Alistair Eglinton,alistair.eglinton@omc.com,Eglinton,Alistair,Client Director,6-Manager/Specialized professional,,SIE (PS),Account Management,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Anastasiia Engelhardt,anastasia.engelhardt@omc.com,Engelhardt,Anastasiia,Senior Account Manager,5-Supervisor/Senior-level professional,,Electrolux,Account Management,Mark Kelly,mark.kelly@omc.com,Mark Kelly,,Michael Turnbull,Mariusz Urbanczyk
+Archie Harrison,archie.harrison@omc.com,Harrison,Archie,Account Manager,4-Intermediate-level professional,,Juul,Account Management,Theodore Tsangarides,theo.tsangarides@omc.com,Theodore Tsangarides,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Aristides Pietrangeli,ari.pietrangeli@omc.com,Pietrangeli,Aristides,Group Account Director,6-Manager/Specialized professional,,Kenvue,Account Management,Donna Edgecombe,donna.edgecombe@omc.com,Donna Edgecombe,,Michael Turnbull,Mariusz Urbanczyk
+Arnaud Robin,arnaud.robin@omc.com,Robin,Arnaud,Client Director,6-Manager/Specialized professional,,ExxonMobil,Account Management,Michael Turnbull,michael.turnbull@omc.com,,Michael Turnbull,,Mariusz Urbanczyk
+Arturo Garcia,arturo.garcia@omc.com,Garcia,Arturo,Senior Account Manager,5-Supervisor/Senior-level professional,,Bacardi,Account Management,Mark Kelly,mark.kelly@omc.com,Mark Kelly,,Michael Turnbull,Mariusz Urbanczyk
+Charles Bacon,charles.bacon@omc.com,Bacon,Charles,Account Manager,4-Intermediate-level professional,,Organon,Account Management,Mark Kelly,mark.kelly@omc.com,Mark Kelly,,Michael Turnbull,Mariusz Urbanczyk
+Charlotte Chan,charlotte.chan@omc.com,Chan,Charlotte,Account Director,6-Manager/Specialized professional,,PMI,Account Management,Theo Oxizidis,theo.oxizidis@omc.com,Theo Oxizidis,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Chloe West,chloe.west@omc.com,West,Chloe,Account Executive,3-Entry-level professional,,unassigned,Account Management,Theodore Tsangarides,theo.tsangarides@omc.com,Theodore Tsangarides,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Christopher Williams,christopher.williams@omc.com,Williams,Christopher,Account Director,6-Manager/Specialized professional,,Seat,Account Management,Marina Belik,marina.belik@omc.com,,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Daniela And Soruco,daniela.andsoruco@omc.com,And Soruco,Daniela,Group Account Director,6-Manager/Specialized professional,,Enterprise,Account Management,Marina Belik,marina.belik@omc.com,,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Donna Edgecombe,donna.edgecombe@omc.com,Edgecombe,Donna,Business Director,7-Director/Seasoned professional,,Centrica,Account Management,Michael Turnbull,michael.turnbull@omc.com,,Michael Turnbull,,Mariusz Urbanczyk
+Elizabeth Tulloch,elizabeth.tulloch@omc.com,Tulloch,Elizabeth,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Elnaz Manan,elnaz.manan@omc.com,Manan,Elnaz,Account Executive,3-Entry-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Emily Taylor,emily.taylor@omc.com,Taylor,Emily,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Erika Falcon,erika.falcon@omc.com,Falcon,Erika,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Federica Alemanno,federica.alemanno@omc.com,Alemanno,Federica,Client Director,6-Manager/Specialized professional,,unassigned,Account Management,Michael Turnbull,michael.turnbull@omc.com,,Michael Turnbull,,Mariusz Urbanczyk
+Grace Walker,grace.walker@omc.com,Walker,Grace,Senior Account Executive,3-Entry-level professional,,JustEat,Account Management,Xochitl Gomez Cruz,xochitl.gomezcruz@omc.com,Xochitl Gomez Cruz,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Henry Daglish,henry.daglish@omc.com,Daglish,Henry,CEO,9-Senior Executive leader,,unassigned,Executive Leadership,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Ian enlist,ian.enlist@omc.com,enlist,Ian,Senior Account Executive,3-Entry-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Jemima Maunder-Taylor,jemima.maunder-taylor@omc.com,Maunder-Taylor,Jemima,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Jeremias Galiano,jeremias.galiano@omc.com,Galiano,Jeremias,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Joanna Lecinska,joanna.lecinska@omc.com,Lecinska,Joanna,Finance Director,7-Director/Seasoned professional,,unassigned,Finance,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Joanna Ly,joanna.ly@omc.com,Ly,Joanna,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Lara Balio,lara.balio@omc.com,Balio,Lara,Account Manager,4-Intermediate-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Laurence Harrison,laurence.harrison@omc.com,Harrison,Laurence,Group Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Lavinia Schiopu,lavinia.schiopu@omc.com,Schiopu,Lavinia,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Marina Belik,marina.belik@omc.com,Belik,Marina,Business Director,7-Director/Seasoned professional,,JustEat,Account Management,Michael Turnbull,michael.turnbull@omc.com,,Michael Turnbull,,Mariusz Urbanczyk
+Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,Urbanczyk,Mariusz,Managing Director,8-Executive leader,,unassigned,Executive Leadership,Henry Daglish,henry.daglish@omc.com,Henry Daglish,,,
+Mark Kelly,mark.kelly@omc.com,Kelly,Mark,Group Account Director,6-Manager/Specialized professional,,Electrolux,Account Management,Michael Turnbull,michael.turnbull@omc.com,,Michael Turnbull,,Mariusz Urbanczyk
+Maximilian Czwalina,max.czwalina@omc.com,Czwalina,Maximilian,Account Manager,4-Intermediate-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Michael Turnbull,michael.turnbull@omc.com,Turnbull,Michael,Managing Partner,8-Executive leader,,unassigned,Executive Leadership,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Natalie Fox,natalie.fox@omc.com,Fox,Natalie,Account Manager,4-Intermediate-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Nevena Tonceva,nevena.tonceva@omc.com,Tonceva,Nevena,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Nicholas Wright,nicholas.wright@omc.com,Wright,Nicholas,Group Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Othman Chiheb,othman.chiheb@omc.com,Chiheb,Othman,Finance Manager,6-Manager/Specialized professional,,unassigned,Finance,Joanna Lecinska,joanna.lecinska@omc.com,Joanna Lecinska,,Mariusz Urbanczyk,
+Oyinda Eghosa-Okojie,oyinda.okojie@omc.com,Eghosa-Okojie,Oyinda,Finance Analyst,4-Intermediate-level professional,,unassigned,Finance,Othman Chiheb,othman.chiheb@omc.com,Othman Chiheb,Joanna Lecinska,Mariusz Urbanczyk,
+Paola Romero,paola.romero@omc.com,Romero,Paola,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Prachi Mittal,prachi.mittal@omc.com,Mittal,Prachi,Finance Business Partner,5-Supervisor/Senior-level professional,,unassigned,Finance,Joanna Lecinska,joanna.lecinska@omc.com,Joanna Lecinska,,Mariusz Urbanczyk,
+Randeep Reehal,randeep.reehal@omc.com,Reehal,Randeep,Group Finance Director,7-Director/Seasoned professional,,unassigned,Finance,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Rebecca Cox,rebecca.cox@omc.com,Cox,Rebecca,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Roxana Lupa,roxana.lupa@omc.com,Lupa,Roxana,Senior Account Executive,3-Entry-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Sam Carrington,sam.carrington@omc.com,Carrington,Sam,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Sarah Heesom,sarah.heesom@omc.com,Heesom,Sarah,Head of HR,7-Director/Seasoned professional,,unassigned,HR,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Silvia Corani,silvia.corani@omc.com,Corani,Silvia,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Sophie Wooller,sophie.wooller@omc.com,Wooller,Sophie,Account Executive,3-Entry-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Theo Oxizidis,theo.oxizidis@omc.com,Oxizidis,Theo,Group Account Director,6-Manager/Specialized professional,,PMI,Account Management,Marina Belik,marina.belik@omc.com,,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Theodore Tsangarides,theo.tsangarides@omc.com,Tsangarides,Theodore,Account Director,6-Manager/Specialized professional,,Juul,Account Management,Marina Belik,marina.belik@omc.com,,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+Valeriya Kovachka,valeriya.kovachka@omc.com,Kovachka,Valeriya,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Viktoria Horvath,viktoria.horvath@omc.com,Horvath,Viktoria,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
+Xochitl Gomez Cruz,xochitl.gomezcruz@omc.com,Gomez Cruz,Xochitl,Senior Account Manager,5-Supervisor/Senior-level professional,,JustEat,Account Management,Marina Belik,marina.belik@omc.com,,Marina Belik,Michael Turnbull,Mariusz Urbanczyk
+`;
+
+const rateCard = {
+    '9': { totalMonthlyCost: 20000, billableRatePerHour: 400 },
+    '8': { totalMonthlyCost: 16000, billableRatePerHour: 350 },
+    '7': { totalMonthlyCost: 14000, billableRatePerHour: 300 },
+    '6': { totalMonthlyCost: 12000, billableRatePerHour: 250 },
+    '5': { totalMonthlyCost: 9000, billableRatePerHour: 180 },
+    '4': { totalMonthlyCost: 6000, billableRatePerHour: 120 },
+    '3': { totalMonthlyCost: 4000, billableRatePerHour: 80 },
+    'default': { totalMonthlyCost: 5000, billableRatePerHour: 100 }
+};
+
+const processCsvData = (csv) => {
+    const lines = csv.trim().split('\n').slice(1);
+    const people = lines.map((line, index) => {
+        const columns = line.split(',');
+        const [fullName, email, , , role, jobLevel, , clientPrimary, functionTeam] = columns;
+        
+        if (!fullName) return null;
+
+        const level = jobLevel.charAt(0);
+        const financials = rateCard[level] || rateCard['default'];
+
+        return {
+            id: `person-csv-${index}`,
+            personId: `p-${fullName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+            name: fullName,
+            role: role,
+            type: 'person',
+            tags: [
+                { type: 'Team', value: functionTeam || 'N/A' },
+                { type: 'Location', value: 'London' }
+            ],
+            email: email,
+            ooo: null,
+            assignments: [],
+            ...financials,
+            clientPrimary: clientPrimary || 'unassigned'
+        };
+    }).filter(Boolean);
+
+    const clients = {};
+    people.forEach(person => {
+        const clientName = person.clientPrimary;
+        if (!clients[clientName]) {
+            clients[clientName] = {
+                id: `client-${clientName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+                name: clientName,
+                type: 'client',
+                strategicFocus: 'General Business Operations',
+                children: [
                     {
-                        id: 'proj-1a', name: 'Holiday Season TV Commercial', type: 'project', brief: 'Create a heartwarming 30-second TV spot for the holiday season, focusing on family and togetherness.', children: [
-                            { id: 'person-1', personId: 'p-alicia', name: 'Alicia Keys', role: 'Creative Director', type: 'person', tags: [{type: 'Team', value: 'Creative'}, {type: 'Skill', value: 'Art Direction'}, {type: 'Location', value: 'New York'}], email: 'alicia.k@example.com', ooo: null, assignments: [{projectId: 'proj-1a', allocation: 50, startDate: '2025-10-01', endDate: '2025-12-20'}] },
-                            { id: 'person-2', personId: 'p-ben', name: 'Ben Carter', role: 'Lead Copywriter', type: 'person', tags: [{type: 'Team', value: 'Creative'}, {type: 'Skill', value: 'Copywriting'}, {type: 'Location', value: 'London'}], email: 'ben.carter@example.com', ooo: null, assignments: [{projectId: 'proj-1a', allocation: 100, startDate: '2025-10-01', endDate: '2025-11-30'}, {projectId: 'proj-2a', allocation: 50, startDate: '2025-12-01', endDate: '2026-02-28'}] },
-                            { id: 'person-10a', personId: 'p-jack', name: 'Jack White', role: 'Strategic Advisor', type: 'person', tags: [{type: 'Team', value: 'Strategy'}, {type: 'Skill', value: 'Data Analysis'}, {type: 'Location', value: 'Remote'}], email: 'jack.white@example.com', ooo: null, assignments: [{projectId: 'proj-1a', allocation: 25, startDate: '2025-10-10', endDate: '2025-11-21'}] },
-                            { id: 'person-11', personId: 'p-leo', name: 'Leo Schmidt', role: 'Video Editor', type: 'person', tags: [{type: 'Team', value: 'Creative'}, {type: 'Skill', value: 'Video Editing'}, {type: 'Location', value: 'Berlin'}], email: 'leo.s@example.com', ooo: null, assignments: [{projectId: 'proj-1a', allocation: 75, startDate: '2025-10-15', endDate: '2025-12-15'}] },
-                        ],
-                    },
-                    {
-                        id: 'proj-1b', name: 'Social Media Blitz', type: 'project', brief: 'Launch a multi-platform social media campaign to support the TV commercial.', children: [
-                            { id: 'person-4', personId: 'p-david', name: 'David Chen', role: 'Social Media Manager', type: 'person', tags: [{type: 'Team', value: 'Digital'}, {type: 'Skill', value: 'Social Media'}, {type: 'Location', value: 'New York'}], email: 'david.chen@example.com', ooo: null, assignments: [{projectId: 'proj-1b', allocation: 100, startDate: '2025-10-01', endDate: '2025-12-31'}] },
-                            { id: 'person-3b', personId: 'p-carla', name: 'Carla Rodriguez', role: 'Graphic Designer', type: 'person', tags: [{type: 'Team', value: 'Creative'}, {type: 'Skill', value: 'Design'}, {type: 'Location', value: 'New York'}], email: 'carla.r@example.com', ooo: null, assignments: [{projectId: 'proj-1b', allocation: 50, startDate: '2025-10-01', endDate: '2025-12-31'}] },
-                            { id: 'person-10b', personId: 'p-jack', name: 'Jack White', role: 'Data Analyst', type: 'person', tags: [{type: 'Team', value: 'Strategy'}, {type: 'Skill', value: 'Data Analysis'}, {type: 'Location', value: 'Remote'}], email: 'jack.white@example.com', ooo: null, assignments: [{projectId: 'proj-1b', allocation: 25, startDate: '2025-10-10', endDate: '2025-11-21'}] },
-                            { id: 'person-12', personId: 'p-fatima', name: 'Fatima Al-Sayed', role: 'SEO Specialist', type: 'person', tags: [{type: 'Team', value: 'Digital'}, {type: 'Skill', value: 'SEO Strategy'}, {type: 'Location', value: 'New York'}], email: 'fatima.as@example.com', ooo: null, assignments: [{projectId: 'proj-1b', allocation: 50, startDate: '2025-10-01', endDate: '2025-12-31'}] },
-                        ],
-                    },
-                    {
-                        id: 'proj-1c', name: 'Synthetic Brand Film', type: 'project', brief: 'Develop a high-impact, fully synthetic video using AI and 3D animation to showcase the future of home appliances.', children: [
-                            { id: 'person-13', personId: 'p-ken', name: 'Ken Watanabe', role: '3D Artist', type: 'person', tags: [{type: 'Team', value: 'Creative'}, {type: 'Skill', value: '3D Animation'}, {type: 'Location', value: 'Remote'}], email: 'ken.watanabe@example.com', ooo: 'Oct 20-25, 2025', assignments: [{projectId: 'proj-1c', allocation: 100, startDate: '2025-10-01', endDate: '2026-01-31'}] },
-                            { id: 'person-14', personId: 'p-maria', name: 'Maria Garcia', role: 'Project Manager', type: 'person', tags: [{type: 'Team', value: 'Strategy'}, {type: 'Skill', value: 'Project Management'}, {type: 'Location', value: 'London'}], email: 'maria.garcia@example.com', ooo: null, assignments: [{projectId: 'proj-1c', allocation: 40, startDate: '2025-10-01', endDate: '2026-01-31'}, {projectId: 'proj-2b', allocation: 60, startDate: '2025-10-01', endDate: '2026-03-31'}] },
+                        id: `prog-${clientName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+                        name: 'Client Management & Operations',
+                        type: 'program',
+                        children: [
+                            {
+                                id: `proj-${clientName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+                                name: 'General Account Management',
+                                type: 'project',
+                                brief: `General account and project management for ${clientName}.`,
+                                children: []
+                            }
                         ]
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        id: 'client-2', name: 'Global Motors', type: 'client', strategicFocus: 'innovation in electric vehicle technology', children: [
-            {
-                id: 'prog-2', name: 'New Website Launch (Project Phoenix)', type: 'program', children: [
-                    {
-                        id: 'proj-2a', name: 'Frontend Development', type: 'project', brief: 'Develop a responsive and modern frontend for the new corporate website using React.', children: [
-                            { id: 'person-7', personId: 'p-grace', name: 'Grace Lee', role: 'UI/UX Specialist', type: 'person', tags: [{type: 'Team', value: 'Development'}, {type: 'Skill', value: 'UX/UI'}, {type: 'Location', value: 'London'}], email: 'grace.lee@example.com', ooo: null, assignments: [{projectId: 'proj-2a', allocation: 100, startDate: '2025-11-01', endDate: '2026-02-28'}] },
-                            { id: 'person-10c', personId: 'p-jack', name: 'Jack White', role: 'QA Lead', type: 'person', tags: [{type: 'Team', value: 'Strategy'}, {type: 'Skill', value: 'Data Analysis'}, {type: 'Location', 'value': 'Remote'}], email: 'jack.white@example.com', ooo: null, assignments: [{projectId: 'proj-2a', allocation: 25, startDate: '2025-10-10', endDate: '2025-11-21'}] },
-                        ],
-                    },
-                    {
-                        id: 'proj-2b', name: 'Backend & API Integration', type: 'project', brief: 'Build robust backend services and APIs to power the new website.', children: [
-                            { id: 'person-9', personId: 'p-ivy', name: 'Ivy Green', role: 'Backend Lead', type: 'person', tags: [{type: 'Team', value: 'Development'}, {type: 'Skill', value: 'Backend Dev'}, {type: 'Location', value: 'Remote'}], email: 'ivy.green@example.com', ooo: null, assignments: [{projectId: 'proj-2b', allocation: 100, startDate: '2025-10-01', endDate: '2026-03-31'}] },
-                            { id: 'person-10d', personId: 'p-jack', name: 'Jack White', role: 'Database Architect', type: 'person', tags: [{type: 'Team', value: 'Strategy'}, {type: 'Skill', value: 'Data Analysis'}, {type: 'Location', value: 'Remote'}], email: 'jack.white@example.com', ooo: null, assignments: [{projectId: 'proj-2b', allocation: 25, startDate: '2025-10-10', endDate: '2025-11-21'}] },
-                        ],
-                    },
-                ],
-            },
-        ],
-    },
-];
+                    }
+                ]
+            };
+        }
+        clients[clientName].children[0].children[0].children.push(person);
+    });
+
+    return Object.values(clients);
+};
+
+const initialData = processCsvData(csvData);
 
 const PlusIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>);
 const TrashIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>);
@@ -62,20 +140,26 @@ const EditIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" wid
 const MailIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>);
 const CalendarIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>);
 const WandIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L11 10l-1.5 1.5 3.52 3.52L21.64 5.36a1.21 1.21 0 0 0 0-1.72Z"></path><path d="m14 7 3 3"></path><path d="M5 6v4"></path><path d="M19 14v4"></path><path d="M10 2v2"></path><path d="M7 8H3"></path><path d="M21 16h-4"></path><path d="M11 3H9"></path></svg>);
+const DollarSignIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>);
+const ArrowUpDownIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>);
+const UsersIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+
 
 // --- Helper Functions ---
 const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
+
 
 // --- Main App Components ---
 
-const Header = () => ( <div className="p-6 bg-white border-b border-gray-200"> <h1 className="text-3xl font-bold text-gray-800">Project & Resource Visualizer</h1> <p className="mt-1 text-gray-600">Click a person or a tag in the side panel to visualize connections.</p> </div> );
-const ClientFilter = ({ clients, activeFilter, onFilterChange }) => ( <div className="px-8 py-4 bg-gray-50 border-b border-gray-200"> <div className="flex items-center space-x-2"> <span className="font-semibold text-gray-600">Filter by Client:</span> <button onClick={() => onFilterChange('all')} className={`px-4 py-1.5 text-sm font-medium rounded-full ${activeFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'}`}>All Clients</button> {clients.map(client => ( <button key={client.id} onClick={() => onFilterChange(client.id)} className={`px-4 py-1.5 text-sm font-medium rounded-full ${activeFilter === client.id ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'}`}>{client.name}</button>))} </div> </div> );
+const Header = () => ( <div className="p-6 bg-white border-b border-gray-200"> <h1 className="text-3xl font-bold text-gray-800">Project & Resource Visualizer</h1> <p className="mt-1 text-gray-600">Click a person to see their projects, or use the side panel to filter by tags and manage your team.</p> </div> );
+const ClientFilter = ({ clients, activeFilter, onFilterChange }) => ( <div className="px-8 py-4 bg-gray-50 border-b border-gray-200"> <div className="flex items-center space-x-2 overflow-x-auto pb-2"> <span className="font-semibold text-gray-600 flex-shrink-0">Filter by Client:</span> <button onClick={() => onFilterChange('all')} className={`px-4 py-1.5 text-sm font-medium rounded-full flex-shrink-0 ${activeFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'}`}>All Clients</button> {clients.map(client => ( <button key={client.id} onClick={() => onFilterChange(client.id)} className={`px-4 py-1.5 text-sm font-medium rounded-full flex-shrink-0 ${activeFilter === client.id ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'}`}>{client.name}</button>))} </div> </div> );
 
 const Node = ({ node, level, onUpdate, path, selection, onPersonSelect, registerNode, highlightedProjects, onStartEdit }) => {
     const isClient = level === 0; const isProgram = level === 1; const isProject = level === 2; const isPerson = level === 3;
     let isHighlighted = false;
-    if (selection.type === 'person' && isPerson) { isHighlighted = node.personId === selection.id; } 
-    else if (selection.type === 'tag' && isPerson) { isHighlighted = node.tags.some(t => t.type === selection.tag.type && t.value === selection.tag.value); } 
+    if (selection.type === 'person' && isPerson) { isHighlighted = node.personId === selection.id; }
+    else if (selection.type === 'tag' && isPerson) { isHighlighted = node.tags.some(t => t.type === selection.tag.type && t.value === selection.tag.value); }
     else if (isProject && highlightedProjects.has(node.id)) { isHighlighted = true; }
 
     const nodeRef = useRef(null);
@@ -268,6 +352,20 @@ const PersonDetailCard = ({ person, onClose, projectMap }) => {
                 <p className="text-lg text-gray-600 mb-4">{person.role}</p>
                 <div className="flex items-center text-gray-700 mb-4"><MailIcon className="h-5 w-5 mr-3" /><a href={`mailto:${person.email}`} className="hover:underline">{person.email}</a></div>
                 {person.ooo && (<div className="flex items-center text-red-600 mb-6 bg-red-50 p-3 rounded-md"><CalendarIcon className="h-5 w-5 mr-3 flex-shrink-0" /><div><p className="font-semibold">Out of Office</p><p>{person.ooo}</p></div></div>)}
+                
+                <div className="mb-6"><h3 className="font-semibold text-gray-700 mb-2">Financials</h3>
+                    <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-md">
+                        <div>
+                            <p className="text-sm text-gray-500">Monthly Cost</p>
+                            <p className="text-lg font-semibold">{formatCurrency(person.totalMonthlyCost)}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-500">Billable Rate</p>
+                            <p className="text-lg font-semibold">{formatCurrency(person.billableRatePerHour)}/hr</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="mb-6"><h3 className="font-semibold text-gray-700 mb-2">Current Assignments ({totalAllocation}% Capacity)</h3><div className="space-y-3">{person.assignments?.map(ass => (<div key={ass.projectId}><div className="flex justify-between items-center mb-1"><span className="font-medium">{projectMap.get(ass.projectId)?.name || 'Unknown Project'}</span><span className="text-sm font-semibold text-gray-600">{ass.allocation}%</span></div><div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${ass.allocation}%` }}></div></div><p className="text-xs text-gray-500 mt-1">{formatDate(ass.startDate)} - {formatDate(ass.endDate)}</p></div>))}{(!person.assignments || person.assignments.length === 0) && <p className="text-sm text-gray-500">No active assignments.</p>}</div></div>
                 <div className="space-y-4">{Object.entries(groupedTags).map(([type, values]) => (<div key={type}><h3 className="font-semibold text-gray-700 mb-2">{type}</h3><div className="flex flex-wrap gap-2">{values.map(value => (<span key={value} className="bg-gray-200 text-gray-800 px-3 py-1 text-sm font-medium rounded-full">{value}</span>))}</div></div>))}</div>
             </div>
@@ -275,7 +373,73 @@ const PersonDetailCard = ({ person, onClose, projectMap }) => {
     );
 };
 
-const SidePanel = ({ data, onTagSelect, selection, onUpdate, onStartAdd }) => {
+const TeamManagementView = ({ people, onPersonSelect }) => {
+    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
+
+    const sortedPeople = useMemo(() => {
+        let sortableItems = [...people];
+        if (sortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                const aVal = sortConfig.key === 'team' ? (a.tags.find(t => t.type === 'Team')?.value || '') : a[sortConfig.key];
+                const bVal = sortConfig.key === 'team' ? (b.tags.find(t => t.type === 'Team')?.value || '') : b[sortConfig.key];
+                
+                if (aVal < bVal) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (aVal > bVal) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [people, sortConfig]);
+
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getTeam = (person) => person.tags.find(t => t.type === 'Team')?.value || 'N/A';
+    
+    return (
+        <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center"><UsersIcon className="h-6 w-6 mr-3" />Team Overview</h2>
+            <div className="overflow-x-auto bg-white rounded-lg border">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            {['name', 'role', 'team', 'totalMonthlyCost', 'billableRatePerHour'].map(key => (
+                                <th key={key} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <button onClick={() => requestSort(key)} className="flex items-center">
+                                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                                        <ArrowUpDownIcon className="h-4 w-4 ml-2 text-gray-400" />
+                                    </button>
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {sortedPeople.map((person) => (
+                            <tr key={person.personId} onClick={() => onPersonSelect(person.personId)} className="hover:bg-gray-50 cursor-pointer">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{person.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{person.role}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getTeam(person)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(person.totalMonthlyCost)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(person.billableRatePerHour)}/hr</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+const SidePanel = ({ data, onTagSelect, selection, onUpdate, onStartAdd, allPeople, onPersonSelect }) => {
     const [activeTab, setActiveTab] = useState('visualize');
     const tags = useMemo(() => {
         const allTags = new Map();
@@ -284,9 +448,10 @@ const SidePanel = ({ data, onTagSelect, selection, onUpdate, onStartAdd }) => {
     }, [data]);
 
     return (
-        <div className="w-full lg:w-96 bg-white p-6 border-l border-gray-200 flex-shrink-0 overflow-y-auto">
-            <div className="border-b border-gray-200 mb-4"><nav className="flex space-x-4"><button onClick={() => setActiveTab('visualize')} className={`py-2 px-4 font-semibold ${activeTab === 'visualize' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}>Visualize</button><button onClick={() => setActiveTab('manage')} className={`py-2 px-4 font-semibold ${activeTab === 'manage' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}>Manage</button></nav></div>
+        <div className="w-full lg:w-[48rem] bg-white p-6 border-l border-gray-200 flex-shrink-0 overflow-y-auto">
+            <div className="border-b border-gray-200 mb-4"><nav className="flex space-x-4"><button onClick={() => setActiveTab('visualize')} className={`py-2 px-4 font-semibold ${activeTab === 'visualize' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}>Visualize</button><button onClick={() => setActiveTab('team')} className={`py-2 px-4 font-semibold ${activeTab === 'team' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}>Team</button><button onClick={() => setActiveTab('manage')} className={`py-2 px-4 font-semibold ${activeTab === 'manage' ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500'}`}>Manage</button></nav></div>
             {activeTab === 'visualize' && ( <div><h2 className="text-2xl font-bold text-gray-800 mb-6">Visualization Controls</h2><div className="space-y-6">{Array.from(tags.keys()).map(type => ( <div key={type}><h3 className="font-semibold text-gray-700 mb-2">{type}</h3><div className="flex flex-wrap gap-2">{Array.from(tags.get(type)).map(value => { const isSelected = selection?.type === 'tag' && selection.tag.type === type && selection.tag.value === value; return <button key={value} onClick={() => onTagSelect({type, value})} className={`px-3 py-1 text-sm font-medium rounded-full transition-colors ${isSelected ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}>{value}</button>; })}</div></div>))}</div></div> )}
+            {activeTab === 'team' && ( <TeamManagementView people={allPeople} onPersonSelect={onPersonSelect} /> )}
             {activeTab === 'manage' && ( <div><h2 className="text-2xl font-bold text-gray-800 mb-6">Management</h2><div className="space-y-4"><button onClick={() => onUpdate({ type: 'ADD_CLIENT', name: prompt('Enter new client name:')})} className="w-full text-left p-3 bg-gray-100 hover:bg-gray-200 rounded-md">Add Client</button><button onClick={() => onUpdate({ type: 'ADD_PROGRAM', name: prompt('Enter new program name:'), clientId: data[0]?.id })} className="w-full text-left p-3 bg-gray-100 hover:bg-gray-200 rounded-md">Add Program (to {data[0]?.name})</button><button onClick={onStartAdd} className="w-full text-left p-3 bg-purple-100 hover:bg-purple-200 rounded-md font-semibold text-purple-800 flex items-center"><SparkleIcon className="h-5 w-5 mr-2" />Add Project with AI...</button></div></div> )}
         </div>
     );
@@ -316,18 +481,30 @@ export default function App() {
     const nodeRefs = useRef(new Map());
     const mainPanelRef = useRef(null);
 
-    const { findPersonById, projectMap } = useMemo(() => {
+    const { findPersonById, projectMap, allPeople, clients } = useMemo(() => {
         const personMap = new Map();
         const projMap = new Map();
-        const crawl = (nodes) => {
+        const pList = [];
+        const clientList = [];
+        const crawl = (nodes, level = 0) => {
             for(const node of nodes) {
-                if (node.type === 'person') personMap.set(node.personId, node);
+                if (level === 0) clientList.push(node);
+                if (node.type === 'person') {
+                    personMap.set(node.personId, node);
+                    pList.push(node);
+                }
                 if (node.type === 'project') projMap.set(node.id, node);
-                if (node.children) crawl(node.children);
+                if (node.children) crawl(node.children, level + 1);
             }
         };
         crawl(data);
-        return { findPersonById: (personId) => personMap.get(personId), projectMap: projMap };
+        const uniquePeople = Array.from(new Map(pList.map(p => [p.personId, p])).values());
+        return { 
+            findPersonById: (personId) => personMap.get(personId), 
+            projectMap: projMap,
+            allPeople: uniquePeople,
+            clients: clientList
+        };
     }, [data]);
 
     const registerNode = (id, ref) => { nodeRefs.current.set(id, ref); };
@@ -342,7 +519,10 @@ export default function App() {
         }
     };
 
-    const handleTagSelect = (tag) => setSelection(prev => (prev.tag?.value === tag.value && prev.tag?.type === tag.type ? {type: null, tag: null} : {type: 'tag', tag: tag}));
+    const handleTagSelect = (tag) => {
+        setDetailedPerson(null); // Clear person detail when a tag is selected
+        setSelection(prev => (prev.tag?.value === tag.value && prev.tag?.type === tag.type ? {type: null, tag: null} : {type: 'tag', tag: tag}));
+    }
     const handleCloseModal = () => setModalState(null);
     const handleStartAdd = () => setModalState({ isAdding: true });
     const handleStartEdit = (project) => setModalState({ project: project });
@@ -408,7 +588,7 @@ export default function App() {
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
             <div className="flex flex-col h-screen">
                 <Header />
-                <ClientFilter clients={data} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
                 <div className="flex flex-1 overflow-hidden">
                     <main ref={mainPanelRef} className="flex-1 p-8 overflow-y-auto relative" onClick={() => { setSelection({type:null}); setDetailedPerson(null); }}>
                         <AffinityConnections connections={connections} />
@@ -417,7 +597,7 @@ export default function App() {
                            {displayedData.length === 0 && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2><p className="mt-2 text-gray-400">Your chart is empty or your filter has no results.</p></div> )}
                         </div>
                     </main>
-                    <SidePanel data={data} onTagSelect={handleTagSelect} selection={selection} onUpdate={handleUpdate} onStartAdd={handleStartAdd} />
+                    <SidePanel data={data} onTagSelect={handleTagSelect} selection={selection} onUpdate={handleUpdate} onStartAdd={handleStartAdd} allPeople={allPeople} onPersonSelect={handlePersonSelect} />
                 </div>
                 <ProjectModal 
                     isOpen={modalState !== null} 
