@@ -44,7 +44,7 @@ Othman Chiheb,othman.chiheb@omc.com,Chiheb,Othman,Finance Manager,6-Manager/Spec
 Oyinda Eghosa-Okojie,oyinda.okojie@omc.com,Eghosa-Okojie,Oyinda,Finance Analyst,4-Intermediate-level professional,,unassigned,Finance,Othman Chiheb,othman.chiheb@omc.com,Othman Chiheb,Joanna Lecinska,Mariusz Urbanczyk,
 Paola Romero,paola.romero@omc.com,Romero,Paola,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
 Prachi Mittal,prachi.mittal@omc.com,Mittal,Prachi,Finance Business Partner,5-Supervisor/Senior-level professional,,unassigned,Finance,Joanna Lecinska,joanna.lecinska@omc.com,Joanna Lecinska,,Mariusz Urbanczyk,
-Randeep Reehal,randeep.reehal@omc.com,Reehal,Randeep,Group Finance Director,7-Director/Seasoned professional,,unassigned,Finance,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
+Randeep Reehal,randeep.reehal@omc.com,Rehal,Randeep,Group Finance Director,7-Director/Seasoned professional,,unassigned,Finance,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
 Rebecca Cox,rebecca.cox@omc.com,Cox,Rebecca,Senior Account Manager,5-Supervisor/Senior-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
 Roxana Lupa,roxana.lupa@omc.com,Lupa,Roxana,Senior Account Executive,3-Entry-level professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
 Sam Carrington,sam.carrington@omc.com,Carrington,Sam,Account Director,6-Manager/Specialized professional,,Diageo,Account Management,Elizabeth Tulloch,elizabeth.tulloch@omc.com,Elizabeth Tulloch,,,Mariusz Urbanczyk
@@ -133,7 +133,7 @@ const processCsvData = (csv) => {
 
 const initialData = processCsvData(csvData);
 
-const PlusIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>);
+const PlusIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>);
 const TrashIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>);
 const SparkleIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2z"></path><path d="M22 2l-2.5 2.5"></path><path d="M2 22l2.5-2.5"></path><path d="M2 2l2.5 2.5"></path><path d="M18 6l1 1"></path></svg>);
 const EditIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
@@ -185,7 +185,7 @@ const Node = ({ node, level, onUpdate, path, selection, onPersonSelect, register
                 </div>
                 <div className="absolute top-2 right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {isProject && <button onClick={(e) => { e.stopPropagation(); onStartEdit(node); }} className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200" aria-label="Edit item"><EditIcon className="h-4 w-4" /></button>}
-                    <button onClick={(e) => { e.stopPropagation(); onUpdate({ type: 'DELETE_NODE', path }); }} className="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200" aria-label="Delete item"><TrashIcon className="h-4 w-4" /></button>
+                    {!isClient && <button onClick={(e) => { e.stopPropagation(); onUpdate({ type: 'DELETE_NODE', path }); }} className="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200" aria-label="Delete item"><TrashIcon className="h-4 w-4" /></button>}
                 </div>
             </div>
             {node.children && node.children.length > 0 && (<div className="mt-2">{node.children.map((child, index) => ( <Node key={child.id} node={child} level={level + 1} onUpdate={onUpdate} path={`${path}.children.${index}`} selection={selection} onPersonSelect={onPersonSelect} registerNode={registerNode} highlightedProjects={highlightedProjects} onStartEdit={onStartEdit} /> ))}</div>)}
@@ -193,7 +193,7 @@ const Node = ({ node, level, onUpdate, path, selection, onPersonSelect, register
     );
 };
 
-const ProjectModal = ({ isOpen, onClose, onUpdate, data, projectData, onSuggestionSelect }) => {
+const ProjectModal = ({ isOpen, onClose, onUpdate, data, projectData, onSuggestionSelect, allPeople }) => {
     const isEditMode = !!projectData;
     const [projectName, setProjectName] = useState('');
     const [programId, setProgramId] = useState('');
@@ -203,19 +203,20 @@ const ProjectModal = ({ isOpen, onClose, onUpdate, data, projectData, onSuggesti
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const { allPrograms, allPeople } = useMemo(() => {
+    // New state for team assignment form
+    const [personToAssign, setPersonToAssign] = useState('');
+    const [allocation, setAllocation] = useState(100);
+    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0]);
+
+    const { allPrograms } = useMemo(() => {
         const programs = [];
-        const pList = [];
         data.forEach(client => {
             client.children.forEach(program => {
                 programs.push({...program, clientName: client.name});
-                program.children.forEach(project => {
-                    pList.push(...project.children);
-                });
             });
         });
-        const uniquePeople = Array.from(new Map(pList.map(p => [p.personId, p])).values());
-        return { allPrograms: programs, allPeople: uniquePeople };
+        return { allPrograms: programs };
     }, [data]);
 
     useEffect(() => {
@@ -236,69 +237,23 @@ const ProjectModal = ({ isOpen, onClose, onUpdate, data, projectData, onSuggesti
             }
         }
     }, [projectData, isEditMode, data, isOpen]);
-
-    const handleEnrichBrief = async () => {
-        if (!projectBrief.trim() || !programId) { setError('Please provide a program and brief.'); return; }
-        setIsLoading(true); setError(null); setGeminiResult(null); setTeamSuggestions([]);
-
-        let client = null;
-        for(const c of data) {
-            if (c.children.some(p => p.id === programId)) {
-                client = c;
-                break;
-            }
-        }
-        if (!client) { setError('Could not find client for this program.'); setIsLoading(false); return; }
-
-        const context = `
-            CLIENT CONTEXT:
-            - Client Name: ${client.name}
-            - Strategic Focus: ${client.strategicFocus}
-
-            AVAILABLE PERSONNEL:
-            ${allPeople.map(p => `- ${p.name} (Role: ${p.role}, Skills: ${p.tags.filter(t=>t.type==='Skill').map(t=>t.value).join(', ')})`).join('\n')}
-
-            ORIGINAL PROJECT BRIEF:
-            "${projectBrief}"
-        `;
-
-        const apiKey = ""; const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-        const systemPrompt = "You are a senior strategic advisor for a creative agency. Your task is to enrich a project brief by incorporating the client's known strategic focus and leveraging the available team's skills. You should refine the brief, suggest specific tasks that align with the strategy, and recommend a team whose skills are a perfect match for the enriched scope. Provide the output in JSON format only.";
-        const payload = {
-            contents: [{ parts: [{ text: context }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: "OBJECT",
-                    properties: {
-                        enrichedBrief: { type: "STRING" },
-                        suggestedTasks: { type: "ARRAY", items: { type: "STRING" } },
-                        teamRecommendations: { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, role: { type: "STRING" }, justification: { type: "STRING" } }, required: ["name", "role", "justification"] } }
-                    },
-                    required: ["enrichedBrief", "suggestedTasks", "teamRecommendations"]
-                }
-            }
-        };
-
-        try {
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`API error: ${response.statusText}`);
-            const result = await response.json();
-            const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (jsonText) {
-                const enrichedResult = JSON.parse(jsonText);
-                setProjectBrief(enrichedResult.enrichedBrief);
-                setGeminiResult({ suggestedTasks: enrichedResult.suggestedTasks });
-                const recommendationsWithIds = enrichedResult.teamRecommendations.map(rec => {
-                    const person = allPeople.find(p => p.name === rec.name);
-                    return { ...rec, personId: person ? person.personId : null };
-                });
-                setTeamSuggestions(recommendationsWithIds);
-            } else { throw new Error("Invalid response structure from API."); }
-        } catch (err) { setError(err.message); } finally { setIsLoading(false); }
-    };
     
+    const handleAddAssignment = () => {
+        if (!personToAssign || !projectData) return;
+        const assignment = {
+            personId: personToAssign,
+            projectId: projectData.id,
+            allocation: parseInt(allocation, 10),
+            startDate,
+            endDate
+        };
+        onUpdate({ type: 'ASSIGN_PERSON', assignment });
+    };
+
+    const handleRemoveAssignment = (personId) => {
+        onUpdate({ type: 'UNASSIGN_PERSON', personId, projectId: projectData.id });
+    };
+
     const handleSubmit = () => {
         if (projectName && programId) {
             if (isEditMode) {
@@ -312,24 +267,72 @@ const ProjectModal = ({ isOpen, onClose, onUpdate, data, projectData, onSuggesti
 
     const handleClose = (shouldTriggerCallback = true) => {
         setProjectName(''); setProgramId(''); setProjectBrief(''); setGeminiResult(null); setTeamSuggestions([]); setIsLoading(false); setError(null);
+        setPersonToAssign(''); setAllocation(100);
         if (shouldTriggerCallback) onClose();
     };
 
     if (!isOpen) return null;
+    
+    const projectTeam = projectData?.children || [];
+    const unassignedPeople = allPeople.filter(p => !projectTeam.some(teamMember => teamMember.personId === p.personId));
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-                <h2 className="text-2xl font-bold mb-4">✨ {isEditMode ? 'Edit Project' : 'Add New Project'}</h2>
-                <div className="space-y-4">
-                    <select value={programId} onChange={e => setProgramId(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50" disabled={isEditMode}><option value="">Select a Program...</option>{allPrograms.map(p => <option key={p.id} value={p.id}>{p.clientName} / {p.name}</option>)}</select>
-                    <input type="text" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} className="w-full p-2 border rounded-md" />
-                    <textarea placeholder="Enter a detailed project brief here..." value={projectBrief} onChange={e => setProjectBrief(e.target.value)} className="w-full p-2 border rounded-md h-32" />
+            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <h2 className="text-2xl font-bold mb-6">{isEditMode ? 'Edit Project' : 'Add New Project'}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Left Column: Project Details & AI */}
+                    <div>
+                        <h3 className="text-lg font-semibold mb-2">Project Details</h3>
+                        <div className="space-y-4">
+                            <select value={programId} onChange={e => setProgramId(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50" disabled={isEditMode}><option value="">Select a Program...</option>{allPrograms.map(p => <option key={p.id} value={p.id}>{p.clientName} / {p.name}</option>)}</select>
+                            <input type="text" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} className="w-full p-2 border rounded-md" />
+                            <textarea placeholder="Enter a detailed project brief here..." value={projectBrief} onChange={e => setProjectBrief(e.target.value)} className="w-full p-2 border rounded-md h-32" />
+                        </div>
+                    </div>
+
+                    {/* Right Column: Team Assignments */}
+                    {isEditMode && (
+                    <div>
+                        <h3 className="text-lg font-semibold mb-2">Team Assignments</h3>
+                        <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                            <h4 className="font-semibold">Add New Member</h4>
+                             <select value={personToAssign} onChange={e => setPersonToAssign(e.target.value)} className="w-full p-2 border rounded-md">
+                                <option value="">Select a person...</option>
+                                {unassignedPeople.map(p => <option key={p.personId} value={p.personId}>{p.name}</option>)}
+                            </select>
+                            <div className="grid grid-cols-3 gap-2">
+                                <input type="number" value={allocation} onChange={e => setAllocation(e.target.value)} placeholder="Allocation %" className="w-full p-2 border rounded-md" />
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border rounded-md" />
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border rounded-md" />
+                            </div>
+                            <button onClick={handleAddAssignment} disabled={!personToAssign} className="w-full flex items-center justify-center p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400">
+                                <PlusIcon className="h-4 w-4 mr-2" /> Assign to Project
+                            </button>
+                        </div>
+                        <div className="mt-4">
+                            <h4 className="font-semibold mb-2">Current Team</h4>
+                            <div className="space-y-2">
+                                {projectTeam.length > 0 ? projectTeam.map(p => (
+                                    <div key={p.personId} className="flex items-center justify-between p-2 bg-white border rounded-md">
+                                        <span>{p.name}</span>
+                                        <button onClick={() => handleRemoveAssignment(p.personId)} className="p-1 text-red-500 hover:text-red-700">
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                )) : <p className="text-sm text-gray-500">No one is assigned to this project yet.</p>}
+                            </div>
+                        </div>
+                    </div>
+                    )}
                 </div>
-                <div className="mt-4"><button onClick={handleEnrichBrief} disabled={isLoading || !projectBrief || !programId} className="w-full flex items-center justify-center p-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors font-semibold disabled:bg-gray-400">{isLoading ? 'Enriching...' : <><WandIcon className="h-5 w-5 mr-2" />Enrich with AI Strategy</>}</button>{error && <p className="text-red-500 text-sm mt-2">{error}</p>}</div>
-                {geminiResult && ( <div className="mt-6 animate-fade-in"><h3 className="font-bold text-lg">Suggested Tasks</h3><ul className="list-disc list-inside bg-gray-50 p-4 rounded-md mt-2 space-y-1">{geminiResult.suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div> )}
-                {teamSuggestions.length > 0 && ( <div className="mt-6 animate-fade-in"><h3 className="font-bold text-lg">Team Recommendations</h3><div className="space-y-2 mt-2">{teamSuggestions.map((p, i) => ( <button key={i} onClick={() => p.personId && onSuggestionSelect(p.personId)} className="w-full text-left p-3 border bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"><p className="font-semibold">{p.name} <span className="font-normal text-gray-500">- {p.role}</span></p><p className="text-sm text-gray-700 mt-1 italic">"{p.justification}"</p></button>))}</div></div>)}
-                <div className="mt-8 flex justify-end gap-4"><button onClick={() => handleClose()} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button><button onClick={handleSubmit} disabled={!projectName || !programId} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-400">{isEditMode ? 'Save Changes' : 'Create Project'}</button></div>
+                
+                <div className="mt-8 flex justify-end gap-4 border-t pt-6">
+                    <button onClick={() => handleClose()} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
+                    <button onClick={handleSubmit} disabled={!projectName || (!programId && !isEditMode)} className="px-4 py-2 bg-purple-600 text-white rounded-md disabled:bg-gray-400">
+                        {isEditMode ? 'Save Changes' : 'Create Project'}
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -520,7 +523,7 @@ export default function App() {
     };
 
     const handleTagSelect = (tag) => {
-        setDetailedPerson(null); // Clear person detail when a tag is selected
+        setDetailedPerson(null);
         setSelection(prev => (prev.tag?.value === tag.value && prev.tag?.type === tag.type ? {type: null, tag: null} : {type: 'tag', tag: tag}));
     }
     const handleCloseModal = () => setModalState(null);
@@ -543,8 +546,97 @@ export default function App() {
     }, [selection, data, activeFilter]);
     
     const handleUpdate = (action) => {
-        const newState = JSON.parse(JSON.stringify(data));
+        let newState = JSON.parse(JSON.stringify(data));
+        let personPool = allPeople;
+
+        const findNodeByPath = (path) => {
+            const parts = path.split('.').filter(p => p);
+            let current = { children: newState };
+            for(const part of parts) { current = current[part]; }
+            return current;
+        }
+
+        const findParentByPath = (path) => {
+            const parts = path.split('.').filter(p => p);
+            let current = { children: newState }; let parent = null;
+            for(const part of parts) { parent = current; current = current[part]; }
+            return parent;
+        }
+        
+        const findPersonInTree = (personId, nodes) => {
+            for (const node of nodes) {
+                if(node.personId === personId) return node;
+                if(node.children) {
+                    const found = findPersonInTree(personId, node.children);
+                    if(found) return found;
+                }
+            }
+            return null;
+        }
+
         switch (action.type) {
+            case 'ASSIGN_PERSON': {
+                const { personId, projectId, allocation, startDate, endDate } = action.assignment;
+                const personToAssign = personPool.find(p => p.personId === personId);
+                
+                if (personToAssign) {
+                    // Update person's assignment list
+                    const updatedPerson = findPersonInTree(personId, newState);
+                    if (updatedPerson) {
+                         if (!updatedPerson.assignments) updatedPerson.assignments = [];
+                         updatedPerson.assignments.push({ projectId, allocation, startDate, endDate });
+                    }
+                    
+                    // Add person to project's children
+                    let projectNode = null;
+                    const findProject = (nodes) => {
+                       for(const node of nodes) {
+                           if(node.id === projectId) { projectNode = node; return; }
+                           if(node.children) findProject(node.children);
+                       }
+                    }
+                    findProject(newState);
+
+                    if (projectNode) {
+                        if (!projectNode.children.some(p => p.personId === personId)) {
+                            projectNode.children.push(personToAssign);
+                        }
+                    }
+                }
+                break;
+            }
+             case 'UNASSIGN_PERSON': {
+                const { personId, projectId } = action;
+                
+                // Remove from project's children
+                let projectNode = null;
+                 const findProject = (nodes) => {
+                       for(const node of nodes) {
+                           if(node.id === projectId) { projectNode = node; return; }
+                           if(node.children) findProject(node.children);
+                       }
+                    }
+                findProject(newState);
+                if (projectNode) {
+                    projectNode.children = projectNode.children.filter(p => p.personId !== personId);
+                }
+
+                // Remove assignment from person
+                const personToUpdate = findPersonInTree(personId, newState);
+                if (personToUpdate && personToUpdate.assignments) {
+                    personToUpdate.assignments = personToUpdate.assignments.filter(a => a.projectId !== projectId);
+                }
+                break;
+            }
+            case 'DELETE_NODE': {
+                const parent = findParentByPath(action.path);
+                const finalKey = action.path.split('.').pop();
+                if (parent && parent.children) {
+                    parent.children.splice(finalKey, 1);
+                }
+                break;
+            }
+            // Other cases remain the same
             case 'ADD_CLIENT':
                 if (action.name) newState.push({ id: `client-${Date.now()}`, name: action.name, type: 'client', children: [] });
                 break;
@@ -570,16 +662,24 @@ export default function App() {
                 };
                 findAndReplace(newState);
                 break;
-            case 'DELETE_NODE':
-                const pathParts = action.path.split('.').filter(p => p);
-                let current = { children: newState }; let parent = null; let finalKey = null;
-                for (const part of pathParts) { parent = current; finalKey = part; current = current[part]; }
-                if (Array.isArray(parent) && finalKey !== null) { parent.splice(finalKey, 1); } 
-                else if (parent && parent.children && finalKey !== null) { parent.children.splice(finalKey, 1); }
-                break;
             default: break;
         }
         setData(newState);
+        // Force re-render of modal if it's open for an edited project
+        if (action.type === 'ASSIGN_PERSON' || action.type === 'UNASSIGN_PERSON') {
+            const updatedProject = findNodeByPath(Object.keys(projectMap).find(key => projectMap[key] === modalState?.project) || '');
+            if(modalState && modalState.project) {
+                 let projectNode = null;
+                 const findProject = (nodes) => {
+                       for(const node of nodes) {
+                           if(node.id === modalState.project.id) { projectNode = node; return; }
+                           if(node.children) findProject(node.children);
+                       }
+                    }
+                findProject(newState);
+                setModalState({ project: projectNode });
+            }
+        }
      };
     
     const displayedData = activeFilter === 'all' ? data : data.filter(client => client.id === activeFilter);
@@ -606,6 +706,7 @@ export default function App() {
                     data={data} 
                     projectData={modalState?.project}
                     onSuggestionSelect={handleSuggestionSelect}
+                    allPeople={allPeople}
                 />
                 <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} />
             </div>
