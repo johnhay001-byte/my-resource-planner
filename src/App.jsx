@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { db } from './firebase'; // Import the db instance from your firebase config
-import { collection, getDocs, writeBatch, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, setDoc, updateDoc, deleteDoc, onSnapshot, addDoc } from "firebase/firestore";
 
 // --- Data to upload (only used once) ---
 const csvData = `Full Name,Employee email,Legal Last Name,Legal First Name,Business Title,TARGET Omnicom Job level,Employee Type,Client_Primary,Function,Line Manager Name,Line Manager Email,People leader level I,People leader level II,People leader level III,People leader level IV
@@ -94,7 +94,7 @@ const { initialClients, initialPeople, initialTasks, initialLeave } = (() => {
             personId: `p-${fullName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
             name: fullName, role, type: 'person',
             tags: [{ type: 'Team', value: functionTeam || 'N/A' }, { type: 'Location', value: 'London' }],
-            email, ooo: null, assignments: [], ...financialsAndSkills,
+            email, ooo: null, ...financialsAndSkills,
             clientPrimary: clientPrimary || 'unassigned'
         };
     }).filter(Boolean);
@@ -110,7 +110,7 @@ const { initialClients, initialPeople, initialTasks, initialLeave } = (() => {
                     id: `prog-${clientId}`, name: 'Client Management & Operations', type: 'program',
                     children: [{
                         id: `proj-${clientId}`, name: 'General Account Management', type: 'project',
-                        brief: `General account and project management for ${clientName}.`, tasks: [], children: []
+                        brief: `General account and project management for ${clientName}.`,
                     }]
                 }]
             };
@@ -123,7 +123,7 @@ const { initialClients, initialPeople, initialTasks, initialLeave } = (() => {
     const adena = people.find(p => p.name === 'Adena Phillips');
     if (anastasiia && mark) {
         tasks.push(
-            { id: 'task-1', projectId: 'proj-electrolux', name: 'Q4 Strategy Deck', assigneeId: anastasiia.personId, startDate: '2025-10-20', endDate: '2025-10-24', estimatedHours: 40, status: 'In Progress', comments: [{id: 1, author: 'Mark', text: 'Great start on this!'}] },
+            { id: 'task-1', projectId: 'proj-electrolux', name: 'Q4 Strategy Deck', assigneeId: anastasiia.personId, startDate: '2025-10-20', endDate: '2025-10-24', estimatedHours: 40, status: 'In Progress', comments: [{id: 'comm-1', author: 'Mark', text: 'Great start on this!'}] },
             { id: 'task-2', projectId: 'proj-electrolux', name: 'Review Creative Concepts', assigneeId: mark.personId, startDate: '2025-10-22', endDate: '2025-10-26', estimatedHours: 16, status: 'To Do', comments: [] }
         );
     }
@@ -153,6 +153,9 @@ const ArrowUpDownIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/s
 const UsersIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
 const Share2Icon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>);
 const ListTreeIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12v-2a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2"/><path d="M21 6V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2"/><path d="M21 18v-2a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2"/><line x1="12" y1="6" x2="12" y2="18"/></svg>);
+const AlertTriangleIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>);
+const CheckCircleIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>);
+const MessageSquareIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>);
 
 // --- Helper Functions ---
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -331,7 +334,7 @@ export default function App() {
         
         newClients.forEach(client => {
             const peopleOnTasksInClient = new Set();
-            client.children.forEach(p => p.children.forEach(proj => proj.tasks.forEach(task => peopleOnTasksInClient.add(task.assigneeId))));
+            (client.children || []).forEach(p => (p.children || []).forEach(proj => (proj.tasks || []).forEach(task => peopleOnTasksInClient.add(task.assigneeId))));
             
             const primaryPeople = people.filter(p => p.clientPrimary === client.name && !peopleOnTasksInClient.has(p.personId));
             if(primaryPeople.length > 0) {
