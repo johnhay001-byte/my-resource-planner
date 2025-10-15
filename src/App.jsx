@@ -340,8 +340,9 @@ export default function App() {
             if(primaryPeople.length > 0) {
                  const generalProject = client.children[0]?.children[0];
                  if (generalProject) {
-                     const existingPeople = new Set(generalProject.children.map(p => p.personId));
+                     const existingPeople = new Set((generalProject.children || []).map(p => p.personId));
                      const newPeople = primaryPeople.filter(p => !existingPeople.has(p.personId));
+                    if (!generalProject.children) generalProject.children = [];
                     generalProject.children.push(...newPeople);
                  }
             }
@@ -368,9 +369,9 @@ export default function App() {
     const handleUpdate = async (action) => {
        switch (action.type) {
             case 'ADD_CLIENT':
-                if (action.name) await setDoc(doc(collection(db, 'clients')), { id: `client-${Date.now()}`, name: action.name, type: 'client', strategicFocus: 'New Client', children: [] });
+                if (action.name) await addDoc(collection(db, 'clients'), { name: action.name, type: 'client', strategicFocus: 'New Client', children: [] });
                 break;
-            // ... other update actions would be converted to firestore writes (setDoc, updateDoc, deleteDoc)
+            // ... other update actions would be converted to firestore writes (addDoc, updateDoc, deleteDoc)
         }
      };
     
