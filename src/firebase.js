@@ -1,24 +1,17 @@
-// src/firebase.js
-// This file will configure the connection to your Firebase project.
-
-// 1. Import the necessary functions from the Firebase SDKs
+// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-// 2. TODO: Replace the following with your app's Firebase project configuration
-// You can find this in your Firebase project settings.
-// Go to Project Settings > General > Your apps > Web app > SDK setup and configuration
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyD3looppMOn2k_waQp4EuDC5WH9KfNUPfM",
+  authDomain: "my-resource-planner.firebaseapp.com",
+  projectId: "my-resource-planner",
+  storageBucket: "my-resource-planner.firebasestorage.app",
+  messagingSenderId: "765125484407",
+  appId: "1:765125484407:web:53708796b14d6ef5900b72"
 };
 
-// 3. Initialize Firebase
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// 4. Get a reference to the Firestore database service
-export const db = getFirestore(app);
