@@ -1,21 +1,34 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+    import { initializeApp } from "firebase/app";
+    import { getFirestore } from "firebase/firestore";
 
-// --- PASTE YOUR FIREBASE CONFIG OBJECT HERE ---
-// This is the 'firebaseConfig' object you got from the Firebase console.
+    // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIza...",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "...",
-  appId: "..."
+  apiKey: "AIzaSyD3looppMOn2k_waQp4EuDC5WH9KfNUPfM",
+  authDomain: "my-resource-planner.firebaseapp.com",
+  projectId: "my-resource-planner",
+  storageBucket: "my-resource-planner.firebasestorage.app",
+  messagingSenderId: "765125484407",
+  appId: "1:765125484407:web:53708796b14d6ef5900b72"
 };
-// ---------------------------------------------
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+    const firebaseConfig = {
+      apiKey: "AIza...",
+      authDomain: "your-project.firebaseapp.com",
+      projectId: "your-project-id",
+      storageBucket: "your-project.appspot.com",
+      messagingSenderId: "...",
+      appId: "..."
+    };
+    // ---------------------------------------------
 
-// Initialize Cloud Firestore and export it
-export const db = getFirestore(app);
+    const app = initializeApp(firebaseConfig);
+    export const db = getFirestore(app);
+    
 
