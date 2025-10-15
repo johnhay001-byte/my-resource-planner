@@ -377,7 +377,7 @@ export default function App() {
     const handleUpdate = async (action) => {
        switch (action.type) {
             case 'ADD_CLIENT':
-                if (action.name) await addDoc(collection(db, 'clients'), { name: action.name, type: 'client', strategicFocus: 'New Client', children: [] });
+                if (action.name) await addDoc(collection(db, 'clients'), { name: action.name, type: 'client', strategicFocus: 'New Client' });
                 break;
             // ... other update actions would be converted to firestore writes (addDoc, updateDoc, deleteDoc)
         }
