@@ -1,4 +1,3 @@
-// VERIFICATION CHANGE: OCT15
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { db } from './firebase'; 
