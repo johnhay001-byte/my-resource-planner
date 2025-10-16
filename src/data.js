@@ -1,5 +1,3 @@
-// This file processes the raw CSV data and prepares it for the initial upload.
-
 const csvData = `Full Name,Employee email,Legal Last Name,Legal First Name,Business Title,TARGET Omnicom Job level,Employee Type,Client_Primary,Function,Line Manager Name,Line Manager Email,People leader level I,People leader level II,People leader level III,People leader level IV
 Adena Phillips,adena.phillips@omc.com,Phillips,Adena,Account Director,6-Manager/Specialized professional,,Centrica,Account Management,Donna Edgecombe,donna.edgecombe@omc.com,Donna Edgecombe,,Michael Turnbull,Mariusz Urbanczyk
 Alistair Eglinton,alistair.eglinton@omc.com,Eglinton,Alistair,Client Director,6-Manager/Specialized professional,,SIE (PS),Account Management,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
