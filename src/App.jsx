@@ -1,11 +1,19 @@
-import React from 'react';
+// FINAL-APP-FILE
+import React, { useState } from 'react';
+import { Header } from './components';
 
 function App() {
+  const [viewMode, setViewMode] = useState('orgChart');
+
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif', textAlign: 'center' }}>
-      <h1>Hello World</h1>
-      <p>This is Step 1.1 of our new, verifiable build process.</p>
-      <p>If you can see this, our deployment pipeline is working correctly.</p>
+    <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
+        <div className="flex flex-col h-screen">
+            <Header viewMode={viewMode} setViewMode={setViewMode} isDataEmpty={false} />
+            <div className="flex-1 p-8">
+                {/* Main content will go here in the next steps */}
+                <p>Step 1.2 is complete if you can see the header above.</p>
+            </div>
+        </div>
     </div>
   );
 }
