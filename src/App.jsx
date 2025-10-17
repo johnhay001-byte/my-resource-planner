@@ -1,9 +1,8 @@
-// FINAL-APP-FILE
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-import { collection, getDocs, writeBatch, doc, setDoc, onSnapshot, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "firebase/firestore";
 import { initialClients, initialPeople, initialTasks, initialLeave } from './data'; 
-import { Header, ClientFilter, Node, NetworkView, SidePanel, ProjectHub, PersonDetailCard } from './components';
+import { Header, ClientFilter, Node, NetworkView, SidePanel, ProjectHub, PersonDetailCard, TeamManagementView } from './components';
 
 async function uploadInitialData() {
     console.log("Starting initial data upload...");
@@ -198,7 +197,7 @@ export default function App() {
                     />
                 </div>
                 {activeProject && <ProjectHub project={activeProject} onClose={() => setActiveProject(null)} onUpdate={handleUpdate} allPeople={people} leaveData={leave}/>}
-                <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} />
+                <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />
             </div>
         </div>
     );
