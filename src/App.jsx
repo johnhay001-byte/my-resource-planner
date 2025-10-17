@@ -14,8 +14,8 @@ async function uploadInitialData() {
     });
 
     initialClients.forEach(client => {
-        const { children, ...clientData } = client;
         const docRef = doc(db, "clients", client.id);
+        const { children, ...clientData } = client;
         batch.set(docRef, clientData);
 
         (children || []).forEach(program => {
@@ -159,6 +159,19 @@ export default function App() {
             case 'ADD_CLIENT':
                 if (action.name) await addDoc(collection(db, 'clients'), { name: action.name, type: 'client', strategicFocus: 'New Client' });
                 break;
+            case 'ADD_PROGRAM':
+                 if (action.name && action.clientId) {
+                    await addDoc(collection(db, `clients/${action.clientId}/programs`), { name: action.name, type: 'program' });
+                }
+                break;
+            case 'ADD_PROJECT':
+                if (action.name && action.programId) {
+                    const program = programs.find(p => p.id === action.programId);
+                    if(program) {
+                        await addDoc(collection(db, `clients/${program.clientId}/programs/${action.programId}/projects`), { name: action.name, type: 'project', brief: '' });
+                    }
+                }
+                break;
             // ... other update actions
         }
      };
@@ -194,6 +207,8 @@ export default function App() {
                         viewMode={viewMode}
                         networkFocus={networkFocus}
                         setNetworkFocus={setNetworkFocus}
+                        clients={clients}
+                        programs={programs}
                     />
                 </div>
                 {activeProject && <ProjectHub project={activeProject} onClose={() => setActiveProject(null)} onUpdate={handleUpdate} allPeople={people} leaveData={leave}/>}
