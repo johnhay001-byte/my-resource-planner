@@ -80,11 +80,7 @@ const processedData = (() => {
     const people = lines.map((line, index) => {
         const columns = line.split(',');
         const [fullName, email, , , role, jobLevel, , clientPrimary, functionTeam] = columns;
-        
-        // This is the corrected, more robust check.
-        // It skips any row that doesn't have a value in the "Business Title" (role) column.
         if (!fullName || !role || !role.trim()) return null;
-
         const level = jobLevel.charAt(0);
         const financialsAndSkills = rateCard[level] || rateCard['default'];
         return {
