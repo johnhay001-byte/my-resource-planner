@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrashIcon } from './Icons';
 
-export const Node = ({ node, level, onUpdate, path, onPersonSelect, onProjectSelect }) => {
+export const Node = ({ node, level, onUpdate, onPersonSelect, onProjectSelect }) => {
     const isClient = level === 0;
     const isProgram = level === 1;
     const isProject = level === 2;
@@ -35,7 +35,7 @@ export const Node = ({ node, level, onUpdate, path, onPersonSelect, onProjectSel
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            onUpdate({ type: 'DELETE_NODE', id: node.id, nodeType: node.type, clientId: node.clientId, programId: node.programId });
+                            onUpdate({ type: 'DELETE_NODE', id: node.id, nodeType: node.type });
                         }}
                         className="absolute top-2 right-2 p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200 opacity-0 group-hover:opacity-100 transition-opacity"
                         aria-label="Delete item"
@@ -52,7 +52,6 @@ export const Node = ({ node, level, onUpdate, path, onPersonSelect, onProjectSel
                             node={child}
                             level={level + 1}
                             onUpdate={onUpdate}
-                            path={`${path}.children.${index}`}
                             onPersonSelect={onPersonSelect}
                             onProjectSelect={onProjectSelect}
                         />
@@ -62,3 +61,4 @@ export const Node = ({ node, level, onUpdate, path, onPersonSelect, onProjectSel
         </div>
     );
 };
+
