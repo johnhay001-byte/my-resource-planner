@@ -38,7 +38,7 @@ export const TeamManagementView = ({ people, onPersonSelect, onUpdate }) => {
             <div className="flex justify-between items-center mb-6">
                  <h2 className="text-2xl font-bold text-gray-800 flex items-center"><UsersIcon className="h-6 w-6 mr-3" />Team Overview</h2>
                  <button onClick={() => onUpdate({ type: 'ADD_PERSON' })} className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700">
-                    <PlusIcon className="h-4 w-4 mr-2" /> Add Person
+                    <PlusIcon className="h-4 w-4 mr-2" /> Add Resource
                 </button>
             </div>
             <div className="overflow-x-auto bg-white rounded-lg border">
