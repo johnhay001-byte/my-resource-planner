@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon } from './Icons';
+import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon, UsersIcon } from './Icons';
 
 // Helper function to format currency
 const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
