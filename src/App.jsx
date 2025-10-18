@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from './firebase'; 
-import { collection, onSnapshot, addDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc } from "firebase/firestore";
 import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
 import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
+import { PersonModal } from './components/PersonModal';
 import './index.css';
 
 export default function App() {
@@ -17,6 +18,8 @@ export default function App() {
 
     const [activeFilter, setActiveFilter] = useState('all');
     const [viewMode, setViewMode] = useState('orgChart');
+    const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
+    const [editingPerson, setEditingPerson] = useState(null);
     
     useEffect(() => {
         const collections = {
@@ -78,26 +81,29 @@ export default function App() {
 
     const handleUpdate = async (action) => {
        switch (action.type) {
-            case 'ADD_CLIENT':
-                if (action.name) await addDoc(collection(db, 'clients'), { name: action.name, type: 'client', strategicFocus: 'New Client' });
+            case 'ADD_PERSON':
+                setEditingPerson(null);
+                setIsPersonModalOpen(true);
                 break;
-            case 'ADD_PROGRAM':
-                 if (action.name && action.clientId) {
-                    await addDoc(collection(db, 'programs'), { name: action.name, type: 'program', clientId: action.clientId });
+            case 'EDIT_PERSON':
+                setEditingPerson(action.person);
+                setIsPersonModalOpen(true);
+                break;
+            case 'SAVE_PERSON':
+                setIsPersonModalOpen(false);
+                setEditingPerson(null);
+                if (action.person.id) { // Editing existing
+                    const personRef = doc(db, "people", action.person.id);
+                    await setDoc(personRef, action.person, { merge: true });
+                } else { // Adding new
+                    const newPerson = { ...action.person, personId: `p-${Date.now()}` };
+                    await addDoc(collection(db, "people"), newPerson);
                 }
                 break;
-            case 'ADD_PROJECT':
-                if (action.name && action.programId) {
-                    const program = programs.find(p => p.id === action.programId);
-                    if(program) {
-                        await addDoc(collection(db, 'projects'), { name: action.name, type: 'project', brief: '', programId: action.programId, clientId: program.clientId });
-                    }
+            case 'DELETE_PERSON':
+                if (action.personId) {
+                    await deleteDoc(doc(db, "people", action.personId));
                 }
-                break;
-            case 'DELETE_NODE':
-                const { id, nodeType } = action;
-                if (nodeType === 'program') await deleteDoc(doc(db, 'programs', id));
-                if (nodeType === 'project') await deleteDoc(doc(db, 'projects', id));
                 break;
         }
      };
@@ -120,11 +126,22 @@ export default function App() {
                            {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                         </div>
                     </main>
-                    <SidePanel onUpdate={handleUpdate} clients={clients} programs={programs} />
+                    <SidePanel 
+                        onUpdate={handleUpdate} 
+                        clients={clients} 
+                        programs={programs} 
+                        allPeople={people} 
+                        onPersonSelect={() => {}} 
+                    />
                 </div>
+                 <PersonModal 
+                    isOpen={isPersonModalOpen}
+                    onClose={() => setIsPersonModalOpen(false)}
+                    onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
+                    personData={editingPerson}
+                />
             </div>
         </div>
     );
 }
-
 

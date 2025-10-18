@@ -1,76 +1,76 @@
-import React, { useState, useMemo } from 'react';
-import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon } from './Icons';
+import React, { useState, useEffect } from 'react';
 
-// Helper function from App.jsx, ensure it's available or passed down
-const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
+export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
+    const [person, setPerson] = useState({});
 
-export const TeamManagementView = ({ people, onPersonSelect, onUpdate }) => {
-    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
-
-    const sortedPeople = useMemo(() => {
-        let sortableItems = [...people];
-        if (sortConfig !== null) {
-            sortableItems.sort((a, b) => {
-                const aVal = sortConfig.key === 'team' ? (a.tags.find(t => t.type === 'Team')?.value || '') : a[sortConfig.key];
-                const bVal = sortConfig.key === 'team' ? (b.tags.find(t => t.type === 'Team')?.value || '') : b[sortConfig.key];
-                
-                if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
-                if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
-                return 0;
-            });
+    useEffect(() => {
+        if (isOpen) {
+            if (personData) {
+                setPerson(personData);
+            } else {
+                // Default for a new person
+                setPerson({
+                    name: '',
+                    role: '',
+                    email: '',
+                    clientPrimary: 'unassigned',
+                    resourceType: 'Full-Time', // Default resource type
+                    tags: [{ type: 'Team', value: 'Account Management' }, { type: 'Location', value: 'London' }],
+                    totalMonthlyCost: 5000,
+                    billableRatePerHour: 100,
+                });
+            }
         }
-        return sortableItems;
-    }, [people, sortConfig]);
+    }, [personData, isOpen]);
 
-    const requestSort = (key) => {
-        let direction = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
+    if (!isOpen) return null;
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setPerson(prev => ({ ...prev, [name]: value }));
     };
 
-    const getTeam = (person) => (person.tags || []).find(t => t.type === 'Team')?.value || 'N/A';
-    
+    const handleTagChange = (e) => {
+        const { name, value } = e.target;
+        setPerson(prev => ({
+            ...prev,
+            tags: (prev.tags || []).map(tag => tag.type === name ? { ...tag, value } : tag)
+        }));
+    };
+
+    const handleSave = () => {
+        if (!person.name || !person.role || !person.email) {
+            alert('Please fill in Name, Role, and Email.');
+            return;
+        }
+        onSave(person);
+    };
+
+    const team = (person.tags || []).find(t => t.type === 'Team')?.value || '';
+
     return (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                 <h2 className="text-2xl font-bold text-gray-800 flex items-center">Team Overview</h2>
-                 <button onClick={() => onUpdate({ type: 'ADD_PERSON' })} className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700">
-                    <PlusIcon className="h-4 w-4 mr-2" /> Add Person
-                </button>
-            </div>
-            <div className="overflow-x-auto bg-white rounded-lg border">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            {['name', 'role', 'team', 'totalMonthlyCost', 'billableRatePerHour'].map(key => (
-                                <th key={key} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    <button onClick={() => requestSort(key)} className="flex items-center">
-                                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                        <ArrowUpDownIcon className="h-4 w-4 ml-2 text-gray-400" />
-                                    </button>
-                                </th>
-                            ))}
-                             <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {sortedPeople.map((person) => (
-                            <tr key={person.id}>
-                                <td onClick={() => onPersonSelect(person.personId)} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer hover:underline">{person.name}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{person.role}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getTeam(person)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(person.totalMonthlyCost)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(person.billableRatePerHour)}/hr</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <button onClick={() => onUpdate({ type: 'EDIT_PERSON', person: person })} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                                    <button onClick={() => { if(window.confirm(`Are you sure you want to delete ${person.name}?`)) onUpdate({ type: 'DELETE_PERSON', personId: person.id }) }} className="text-red-600 hover:text-red-900">Delete</button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-lg animate-fade-in-fast">
+                <h2 className="text-2xl font-bold mb-6">{personData ? 'Edit Person' : 'Add New Person'}</h2>
+                <div className="space-y-4">
+                    <input type="text" name="name" value={person.name || ''} onChange={handleChange} placeholder="Full Name" className="w-full p-2 border rounded-md" />
+                    <input type="email" name="email" value={person.email || ''} onChange={handleChange} placeholder="Email" className="w-full p-2 border rounded-md" />
+                    <input type="text" name="role" value={person.role || ''} onChange={handleChange} placeholder="Business Title / Role" className="w-full p-2 border rounded-md" />
+                    <input type="text" name="Team" value={team} onChange={handleTagChange} placeholder="Team / Function" className="w-full p-2 border rounded-md" />
+                     <select name="resourceType" value={person.resourceType || 'Full-Time'} onChange={handleChange} className="w-full p-2 border rounded-md bg-gray-50">
+                        <option>Full-Time</option>
+                        <option>Contractor</option>
+                        <option>Vendor</option>
+                    </select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <input type="number" name="totalMonthlyCost" value={person.totalMonthlyCost || 0} onChange={handleChange} placeholder="Monthly Cost" className="w-full p-2 border rounded-md" />
+                        <input type="number" name="billableRatePerHour" value={person.billableRatePerHour || 0} onChange={handleChange} placeholder="Billable Rate (/hr)" className="w-full p-2 border rounded-md" />
+                    </div>
+                </div>
+                <div className="mt-8 flex justify-end gap-4">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
+                    <button onClick={handleSave} className="px-4 py-2 bg-purple-600 text-white rounded-md">Save</button>
+                </div>
             </div>
         </div>
     );

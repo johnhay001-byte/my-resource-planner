@@ -4,20 +4,22 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
     const [person, setPerson] = useState({});
 
     useEffect(() => {
-        if (personData) {
-            setPerson(personData);
-        } else {
-            // Default for a new person
-            setPerson({
-                name: '',
-                role: '',
-                email: '',
-                clientPrimary: 'unassigned',
-                resourceType: 'Full-Time', // Default resource type
-                tags: [{ type: 'Location', value: 'London' }],
-                totalMonthlyCost: 5000,
-                billableRatePerHour: 100,
-            });
+        if (isOpen) {
+            if (personData) {
+                setPerson(personData);
+            } else {
+                // Default for a new person
+                setPerson({
+                    name: '',
+                    role: '',
+                    email: '',
+                    clientPrimary: 'unassigned',
+                    resourceType: 'Full-Time', // Default resource type
+                    tags: [{ type: 'Team', value: 'Account Management' }, { type: 'Location', value: 'London' }],
+                    totalMonthlyCost: 5000,
+                    billableRatePerHour: 100,
+                });
+            }
         }
     }, [personData, isOpen]);
 
@@ -32,25 +34,23 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
         const { name, value } = e.target;
         setPerson(prev => ({
             ...prev,
-            tags: prev.tags.map(tag => tag.type === name ? { ...tag, value } : tag)
+            tags: (prev.tags || []).map(tag => tag.type === name ? { ...tag, value } : tag)
         }));
     };
 
     const handleSave = () => {
-        // Simple validation
         if (!person.name || !person.role || !person.email) {
-            alert('Please fill in all required fields.');
+            alert('Please fill in Name, Role, and Email.');
             return;
         }
         onSave(person);
-        onClose();
     };
 
     const team = (person.tags || []).find(t => t.type === 'Team')?.value || '';
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-lg">
+            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-lg animate-fade-in-fast">
                 <h2 className="text-2xl font-bold mb-6">{personData ? 'Edit Person' : 'Add New Person'}</h2>
                 <div className="space-y-4">
                     <input type="text" name="name" value={person.name || ''} onChange={handleChange} placeholder="Full Name" className="w-full p-2 border rounded-md" />
@@ -75,3 +75,4 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
         </div>
     );
 };
+
