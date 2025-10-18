@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, doc, deleteDoc } from "firebase/firestore";
 import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
 import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
-import { PersonModal } from './components/PersonModal';
+import { NetworkView } from './components/NetworkView';
+// NOTE: ProjectHub and PersonDetailCard are placeholders until we build them in the next steps.
+const ProjectHub = () => null;
+const PersonDetailCard = () => null;
 import './index.css';
 
 export default function App() {
@@ -18,8 +21,9 @@ export default function App() {
 
     const [activeFilter, setActiveFilter] = useState('all');
     const [viewMode, setViewMode] = useState('orgChart');
-    const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
-    const [editingPerson, setEditingPerson] = useState(null);
+    const [activeProject, setActiveProject] = useState(null); 
+    const [detailedPerson, setDetailedPerson] = useState(null);
+    const [networkFocus, setNetworkFocus] = useState(null);
     
     useEffect(() => {
         const collections = {
@@ -30,13 +34,21 @@ export default function App() {
             tasks: setTasks,
         };
 
+        let loadedCount = 0;
+        const totalCollections = Object.keys(collections).length;
+
         const unsubscribers = Object.entries(collections).map(([name, setter]) => 
             onSnapshot(collection(db, name), (snapshot) => {
                 setter(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+                loadedCount++;
+                if (loadedCount === totalCollections) {
+                    setLoading(false);
+                }
+            }, (error) => {
+                console.error(`Error fetching ${name}:`, error);
+                setLoading(false);
             })
         );
-        
-        setLoading(false);
 
         return () => unsubscribers.forEach(unsub => unsub());
     }, []);
@@ -79,36 +91,47 @@ export default function App() {
 
     }, [clients, programs, projects, people, tasks]);
 
+    const handlePersonSelect = (personId) => {
+         if (detailedPerson?.personId === personId) {
+            setDetailedPerson(null);
+        } else {
+            const personData = people.find(p => p.personId === personId);
+            setDetailedPerson(personData);
+        }
+    };
+    
+    const handleProjectSelect = (project) => {
+        setActiveProject(project);
+    };
+
     const handleUpdate = async (action) => {
        switch (action.type) {
-            case 'ADD_PERSON':
-                setEditingPerson(null);
-                setIsPersonModalOpen(true);
+            case 'ADD_CLIENT':
+                if (action.name) await addDoc(collection(db, 'clients'), { name: action.name, type: 'client', strategicFocus: 'New Client' });
                 break;
-            case 'EDIT_PERSON':
-                setEditingPerson(action.person);
-                setIsPersonModalOpen(true);
-                break;
-            case 'SAVE_PERSON':
-                setIsPersonModalOpen(false);
-                setEditingPerson(null);
-                if (action.person.id) { // Editing existing
-                    const personRef = doc(db, "people", action.person.id);
-                    await setDoc(personRef, action.person, { merge: true });
-                } else { // Adding new
-                    const newPerson = { ...action.person, personId: `p-${Date.now()}` };
-                    await addDoc(collection(db, "people"), newPerson);
+            case 'ADD_PROGRAM':
+                 if (action.name && action.clientId) {
+                    await addDoc(collection(db, 'programs'), { name: action.name, type: 'program', clientId: action.clientId });
                 }
                 break;
-            case 'DELETE_PERSON':
-                if (action.personId) {
-                    await deleteDoc(doc(db, "people", action.personId));
+            case 'ADD_PROJECT':
+                if (action.name && action.programId) {
+                    const program = programs.find(p => p.id === action.programId);
+                    if(program) {
+                        await addDoc(collection(db, 'projects'), { name: action.name, type: 'project', brief: '', programId: action.programId, clientId: program.clientId });
+                    }
                 }
+                break;
+            case 'DELETE_NODE':
+                const { id, nodeType } = action;
+                if (nodeType === 'program') await deleteDoc(doc(db, 'programs', id));
+                if (nodeType === 'project') await deleteDoc(doc(db, 'projects', id));
                 break;
         }
      };
     
     const displayedData = activeFilter === 'all' ? data : data.filter(client => client.id === activeFilter);
+    const networkData = networkFocus ? data.filter(c => c.id === networkFocus.id) : data;
 
     if (loading) {
         return <div className="flex items-center justify-center h-screen"><div className="text-xl font-semibold">Loading Data...</div></div>;
@@ -118,28 +141,22 @@ export default function App() {
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
             <div className="flex flex-col h-screen">
                 <Header viewMode={viewMode} setViewMode={setViewMode} />
-                <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                {viewMode === 'orgChart' && <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />}
                 <div className="flex flex-1 overflow-hidden">
                     <main className="flex-1 p-8 overflow-y-auto relative">
-                       <div className="max-w-7xl mx-auto relative z-20">
-                           {displayedData.map((client, clientIndex) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} path={`${clientIndex}`} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
-                           {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
-                        </div>
+                       {viewMode === 'orgChart' ? (
+                           <div className="max-w-7xl mx-auto relative z-20">
+                               {displayedData.map((client, clientIndex) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} path={`${clientIndex}`} onPersonSelect={handlePersonSelect} onProjectSelect={handleProjectSelect} /></div>))}
+                               {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
+                            </div>
+                       ) : (
+                           <NetworkView data={networkData} onNodeClick={()=>{}}/>
+                       )}
                     </main>
-                    <SidePanel 
-                        onUpdate={handleUpdate} 
-                        clients={clients} 
-                        programs={programs} 
-                        allPeople={people} 
-                        onPersonSelect={() => {}} 
-                    />
+                    <SidePanel onUpdate={handleUpdate} clients={clients} programs={programs} />
                 </div>
-                 <PersonModal 
-                    isOpen={isPersonModalOpen}
-                    onClose={() => setIsPersonModalOpen(false)}
-                    onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
-                    personData={editingPerson}
-                />
+                {activeProject && <ProjectHub project={activeProject} onClose={() => setActiveProject(null)} />}
+                {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} />}
             </div>
         </div>
     );
