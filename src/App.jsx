@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
 import { collection, getDocs, writeBatch, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "firebase/firestore";
-import { initialClients, initialPeople, initialTasks, initialLeave } from './data'; 
+import { initialClients, initialPeople, initialTasks, initialLeave, initialPrograms, initialProjects } from './data'; 
 import { Header, ClientFilter, Node, NetworkView, SidePanel, ProjectHub, PersonDetailCard, TeamManagementView } from './components';
 
+// This function now uploads to the new, flat data structure
 async function uploadInitialData() {
     console.log("Starting initial data upload...");
     const batch = writeBatch(db);
@@ -15,20 +16,17 @@ async function uploadInitialData() {
 
     initialClients.forEach(client => {
         const docRef = doc(db, "clients", client.id);
-        const { children, ...clientData } = client;
-        batch.set(docRef, clientData);
+        batch.set(docRef, client);
+    });
 
-        (children || []).forEach(program => {
-            const { children: programChildren, ...programData } = program;
-            const progDocRef = doc(db, `clients/${client.id}/programs`, program.id);
-            batch.set(progDocRef, programData);
+    initialPrograms.forEach(program => {
+        const docRef = doc(db, "programs", program.id);
+        batch.set(docRef, program);
+    });
 
-            (programChildren || []).forEach(project => {
-                const { children: projectChildren, ...projectData } = project;
-                const projDocRef = doc(db, `clients/${client.id}/programs/${program.id}/projects`, project.id);
-                batch.set(projDocRef, projectData);
-            });
-        });
+    initialProjects.forEach(project => {
+        const docRef = doc(db, "projects", project.id);
+        batch.set(docRef, project);
     });
 
     initialTasks.forEach(task => {
@@ -70,6 +68,9 @@ export default function App() {
     useEffect(() => {
         const unsubscribers = [];
         const collections = {
+            clients: setClients,
+            programs: setPrograms,
+            projects: setProjects,
             people: setPeople,
             tasks: setTasks,
             leave: setLeave,
@@ -79,8 +80,10 @@ export default function App() {
             try {
                 const peopleSnapshot = await getDocs(collection(db, "people"));
                 if (peopleSnapshot.empty) setIsDataEmpty(true);
+                setLoading(false);
             } catch (error) {
                 console.error("Error checking for initial data:", error);
+                setLoading(false);
             }
         };
         
@@ -92,30 +95,6 @@ export default function App() {
             });
             unsubscribers.push(unsub);
         });
-        
-        const clientsUnsub = onSnapshot(collection(db, "clients"), async (clientSnapshot) => {
-            const clientsData = clientSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            const allPrograms = [];
-            const allProjects = [];
-
-            for (const client of clientsData) {
-                const programsSnapshot = await getDocs(collection(db, `clients/${client.id}/programs`));
-                const programsData = programsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, clientId: client.id }));
-                allPrograms.push(...programsData);
-
-                for (const program of programsData) {
-                    const projectsSnapshot = await getDocs(collection(db, `clients/${client.id}/programs/${program.id}/projects`));
-                    const projectsData = projectsSnapshot.docs.map(doc => ({...doc.data(), id: doc.id, programId: program.id, clientId: client.id }));
-                    allProjects.push(...projectsData);
-                }
-            }
-            setClients(clientsData);
-            setPrograms(allPrograms);
-            setProjects(allProjects);
-            setLoading(false);
-        });
-        unsubscribers.push(clientsUnsub);
-
 
         return () => unsubscribers.forEach(unsub => unsub());
     }, []);
@@ -161,14 +140,14 @@ export default function App() {
                 break;
             case 'ADD_PROGRAM':
                  if (action.name && action.clientId) {
-                    await addDoc(collection(db, `clients/${action.clientId}/programs`), { name: action.name, type: 'program' });
+                    await addDoc(collection(db, 'programs'), { name: action.name, type: 'program', clientId: action.clientId });
                 }
                 break;
             case 'ADD_PROJECT':
                 if (action.name && action.programId) {
                     const program = programs.find(p => p.id === action.programId);
                     if(program) {
-                        await addDoc(collection(db, `clients/${program.clientId}/programs/${action.programId}/projects`), { name: action.name, type: 'project', brief: '' });
+                        await addDoc(collection(db, 'projects'), { name: action.name, type: 'project', brief: '', programId: action.programId, clientId: program.clientId });
                     }
                 }
                 break;
