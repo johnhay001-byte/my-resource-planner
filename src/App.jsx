@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
 import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
+import { ProjectHub } from './components/ProjectHub';
 import { PersonModal } from './components/PersonModal';
 import './index.css';
 
@@ -18,6 +19,8 @@ export default function App() {
 
     const [activeFilter, setActiveFilter] = useState('all');
     const [viewMode, setViewMode] = useState('orgChart');
+    const [activeProject, setActiveProject] = useState(null); 
+    const [detailedPerson, setDetailedPerson] = useState(null);
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     
@@ -87,6 +90,30 @@ export default function App() {
 
     }, [clients, programs, projects, people, tasks]);
 
+    const projectMap = useMemo(() => {
+        const map = new Map();
+        projects.forEach(p => map.set(p.id, p));
+        return map;
+    }, [projects]);
+
+
+    const handlePersonSelect = (personId) => {
+         if (detailedPerson?.personId === personId) {
+            setDetailedPerson(null);
+        } else {
+            const personData = people.find(p => p.personId === personId);
+            setDetailedPerson(personData);
+        }
+    };
+    
+    const handleProjectSelect = (project) => {
+        const fullProjectData = {
+            ...project,
+            tasks: tasks.filter(t => t.projectId === project.id)
+        };
+        setActiveProject(fullProjectData);
+    };
+
     const handleUpdate = async (action) => {
        switch (action.type) {
             case 'ADD_PERSON':
@@ -102,7 +129,8 @@ export default function App() {
                 setEditingPerson(null);
                 if (action.person.id) { // Editing existing
                     const personRef = doc(db, "people", action.person.id);
-                    await setDoc(personRef, action.person, { merge: true });
+                    const { id, ...personData } = action.person;
+                    await setDoc(personRef, personData, { merge: true });
                 } else { // Adding new
                     const newPerson = { ...action.person, personId: `p-${Date.now()}` };
                     await addDoc(collection(db, "people"), newPerson);
@@ -130,7 +158,7 @@ export default function App() {
                 <div className="flex flex-1 overflow-hidden">
                     <main className="flex-1 p-8 overflow-y-auto relative">
                        <div className="max-w-7xl mx-auto relative z-20">
-                           {displayedData.map((client, clientIndex) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} path={`${clientIndex}`} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
+                           {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={handlePersonSelect} onProjectSelect={handleProjectSelect} /></div>))}
                            {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                         </div>
                     </main>
@@ -139,7 +167,7 @@ export default function App() {
                         clients={clients} 
                         programs={programs} 
                         allPeople={people} 
-                        onPersonSelect={() => {}} 
+                        onPersonSelect={handlePersonSelect} 
                     />
                 </div>
                  <PersonModal 
@@ -148,6 +176,7 @@ export default function App() {
                     onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
                     personData={editingPerson}
                 />
+                {activeProject && <ProjectHub project={activeProject} onClose={() => setActiveProject(null)} onUpdate={handleUpdate} allPeople={people} />}
             </div>
         </div>
     );
