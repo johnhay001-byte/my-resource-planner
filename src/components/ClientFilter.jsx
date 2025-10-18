@@ -22,3 +22,4 @@ export const ClientFilter = ({ clients, activeFilter, onFilterChange }) => (
         </div>
     </div>
 );
+
