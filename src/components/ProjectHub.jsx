@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, TrashIcon, MessageSquareIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon } from './Icons';
 
-// Helper function from App.jsx, ensure it's available or passed down
+// Helper function to format date
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
@@ -9,8 +9,7 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
     const [tasks, setTasks] = useState([]);
 
     useEffect(() => {
-        // In a real app, you'd fetch tasks for this specific project
-        // For now, we'll use the tasks passed in via props
+        // This will update whenever the project prop changes
         setTasks(project.tasks || []);
     }, [project]);
 
@@ -31,8 +30,7 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                 </div>
 
                 <div className="flex-grow overflow-y-auto">
-                    {view === 'list' && <ListView tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />}
-                    {/* Board and Gantt views are placeholders for now */}
+                    {view === 'list' && <ListView tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} projectId={project.id} />}
                     {view === 'board' && <div className="text-center p-8 text-gray-500">Kanban Board View Coming Soon!</div>}
                     {view === 'gantt' && <div className="text-center p-8 text-gray-500">Gantt Chart View Coming Soon!</div>}
                 </div>
@@ -41,22 +39,23 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
     );
 };
 
-const ListView = ({ tasks, allPeople, onUpdate }) => {
+const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
     const [newTaskName, setNewTaskName] = useState('');
 
     const handleAddTask = () => {
         if (!newTaskName.trim()) return;
-        // In a real app, we'd have a full form. For now, a simple name is enough.
-        const newTask = {
-            name: newTaskName,
-            status: 'To Do',
-            assigneeId: null,
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0],
-            comments: []
-        };
-        // This would be passed up to App.jsx to save to Firebase
-        console.log("Adding new task:", newTask); 
+        onUpdate({
+            type: 'ADD_TASK',
+            task: {
+                projectId,
+                name: newTaskName,
+                status: 'To Do',
+                assigneeId: null,
+                startDate: new Date().toISOString().split('T')[0],
+                endDate: new Date().toISOString().split('T')[0],
+                comments: []
+            }
+        });
         setNewTaskName('');
     };
 
@@ -85,7 +84,14 @@ const ListView = ({ tasks, allPeople, onUpdate }) => {
 
 const TaskItem = ({ task, allPeople, onUpdate }) => {
     const [showComments, setShowComments] = useState(false);
-    const assignee = allPeople.find(p => p.personId === task.assigneeId);
+    const [newComment, setNewComment] = useState('');
+    const assignee = allPeople.find(p => p.id === task.assigneeId);
+
+    const handleAddComment = () => {
+        if (!newComment.trim()) return;
+        onUpdate({ type: 'ADD_COMMENT', taskId: task.id, commentText: newComment });
+        setNewComment('');
+    };
 
     return (
         <div className="py-4">
@@ -113,8 +119,14 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                             </div>
                         ))}
                          <div className="flex gap-2 pt-2">
-                            <input type="text" placeholder="Add a comment..." className="flex-grow p-2 border rounded-md text-sm"/>
-                            <button className="px-3 py-1 text-sm font-semibold rounded-md bg-gray-200 hover:bg-gray-300">Post</button>
+                            <input 
+                                type="text" 
+                                placeholder="Add a comment..." 
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                className="flex-grow p-2 border rounded-md text-sm"
+                            />
+                            <button onClick={handleAddComment} className="px-3 py-1 text-sm font-semibold rounded-md bg-gray-200 hover:bg-gray-300">Post</button>
                          </div>
                     </div>
                 </div>
@@ -122,3 +134,4 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
         </div>
     );
 };
+
