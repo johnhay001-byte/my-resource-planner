@@ -1,5 +1,3 @@
-// This file processes the raw CSV data and prepares it for the initial upload.
-
 const csvData = `Full Name,Employee email,Legal Last Name,Legal First Name,Business Title,TARGET Omnicom Job level,Employee Type,Client_Primary,Function,Line Manager Name,Line Manager Email,People leader level I,People leader level II,People leader level III,People leader level IV
 Adena Phillips,adena.phillips@omc.com,Phillips,Adena,Account Director,6-Manager/Specialized professional,,Centrica,Account Management,Donna Edgecombe,donna.edgecombe@omc.com,Donna Edgecombe,,Michael Turnbull,Mariusz Urbanczyk
 Alistair Eglinton,alistair.eglinton@omc.com,Eglinton,Alistair,Client Director,6-Manager/Specialized professional,,SIE (PS),Account Management,Mariusz Urbanczyk,mariusz.urbanczyk@omc.com,,,,Mariusz Urbanczyk
@@ -100,17 +98,34 @@ const processedData = (() => {
         const clientName = person.clientPrimary;
         if (!clientMap[clientName]) {
             const clientId = `client-${clientName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-            clientMap[clientName] = {
+            clientMap[clientId] = {
                 id: clientId, name: clientName, type: 'client', strategicFocus: 'General Business Operations',
-                children: [{
-                    id: `prog-${clientId}`, name: 'Client Management & Operations', type: 'program',
-                    children: [{
-                        id: `proj-${clientId}`, name: 'General Account Management', type: 'project',
-                        brief: `General account and project management for ${clientName}.`,
-                    }]
-                }]
             };
         }
+    });
+
+    const programMap = {};
+    Object.values(clientMap).forEach(client => {
+        const programId = `prog-${client.id}`;
+        programMap[programId] = {
+            id: programId,
+            name: 'Client Management & Operations',
+            type: 'program',
+            clientId: client.id
+        };
+    });
+
+    const projectMap = {};
+    Object.values(programMap).forEach(program => {
+        const projectId = `proj-${program.clientId}`;
+        projectMap[projectId] = {
+            id: projectId,
+            name: 'General Account Management',
+            type: 'project',
+            brief: `General account and project management for ${program.clientId.replace('client-','')}.`,
+            programId: program.id,
+            clientId: program.clientId
+        };
     });
     
     const tasks = [];
@@ -135,8 +150,8 @@ const processedData = (() => {
     ].filter(l => l.personId);
 
 
-    return { initialClients: Object.values(clientMap), initialPeople: people, initialTasks: tasks, initialLeave: leave };
+    return { initialClients: Object.values(clientMap), initialPeople: people, initialTasks: tasks, initialLeave: leave, initialPrograms: Object.values(programMap), initialProjects: Object.values(projectMap) };
 })();
 
-export const { initialClients, initialPeople, initialTasks, initialLeave } = processedData;
+export const { initialClients, initialPeople, initialTasks, initialLeave, initialPrograms, initialProjects } = processedData;
 
