@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, MessageSquareIcon } from './Icons';
 
-// Helper function to format date
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
-    const [view, setView] = useState('list'); // 'list', 'board', 'gantt'
+    const [view, setView] = useState('list'); 
     const [tasks, setTasks] = useState([]);
 
     useEffect(() => {
-        // This will update whenever the project prop changes
         setTasks(project.tasks || []);
     }, [project]);
 
@@ -89,7 +87,7 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
 
     const handleAddComment = () => {
         if (!newComment.trim()) return;
-        onUpdate({ type: 'ADD_COMMENT', taskId: task.id, commentText: newComment });
+        onUpdate({ type: 'ADD_COMMENT', taskId: task.id, commentText: newComment, author: 'User' });
         setNewComment('');
     };
 

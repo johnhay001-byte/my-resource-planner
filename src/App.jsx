@@ -1,11 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc } from "firebase/firestore";
-import { Header } from './components/Header';
-import { SidePanel } from './components/SidePanel';
-import { ClientFilter } from './components/ClientFilter';
-import { Node } from './components/Node';
-import { PersonModal } from './components/PersonModal';
+import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { Header, SidePanel, ClientFilter, Node, PersonModal, ProjectHub } from './components/AllComponents';
 import './index.css';
 
 export default function App() {
@@ -20,6 +16,7 @@ export default function App() {
     const [viewMode, setViewMode] = useState('orgChart');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
+    const [activeProject, setActiveProject] = useState(null); 
     
     useEffect(() => {
         const collections = {
@@ -30,21 +27,13 @@ export default function App() {
             tasks: setTasks,
         };
 
-        let loadedCount = 0;
-        const totalCollections = Object.keys(collections).length;
-
         const unsubscribers = Object.entries(collections).map(([name, setter]) => 
             onSnapshot(collection(db, name), (snapshot) => {
                 setter(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-                loadedCount++;
-                if (loadedCount === totalCollections) {
-                    setLoading(false);
-                }
-            }, (error) => {
-                console.error(`Error fetching ${name}:`, error);
-                setLoading(false);
             })
         );
+        
+        setLoading(false);
 
         return () => unsubscribers.forEach(unsub => unsub());
     }, []);
@@ -100,18 +89,31 @@ export default function App() {
             case 'SAVE_PERSON':
                 setIsPersonModalOpen(false);
                 setEditingPerson(null);
-                if (action.person.id) { // Editing existing
+                if (action.person.id) { 
                     const personRef = doc(db, "people", action.person.id);
-                    const { id, ...personData } = action.person; // Omit id from Firestore doc
+                    const { id, ...personData } = action.person;
                     await setDoc(personRef, personData, { merge: true });
-                } else { // Adding new
+                } else { 
                     const newPerson = { ...action.person, personId: `p-${Date.now()}` };
                     await addDoc(collection(db, "people"), newPerson);
                 }
                 break;
             case 'DELETE_PERSON':
-                if (action.personId) {
-                    await deleteDoc(doc(db, "people", action.personId));
+                if (action.personId) await deleteDoc(doc(db, "people", action.personId));
+                break;
+            case 'ADD_TASK':
+                if (action.task) await addDoc(collection(db, 'tasks'), action.task);
+                break;
+            case 'ADD_COMMENT':
+                if (action.taskId && action.commentText) {
+                    const taskRef = doc(db, 'tasks', action.taskId);
+                    await updateDoc(taskRef, {
+                        comments: arrayUnion({
+                            id: `comm-${Date.now()}`,
+                            author: action.author,
+                            text: action.commentText
+                        })
+                    });
                 }
                 break;
         }
@@ -131,17 +133,11 @@ export default function App() {
                 <div className="flex flex-1 overflow-hidden">
                     <main className="flex-1 p-8 overflow-y-auto relative">
                        <div className="max-w-7xl mx-auto relative z-20">
-                           {displayedData.map((client, clientIndex) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} path={`${clientIndex}`} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
+                           {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={()=>{}} onProjectSelect={(project) => setActiveProject({ ...project, tasks: tasks.filter(t => t.projectId === project.id) })} /></div>))}
                            {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                         </div>
                     </main>
-                    <SidePanel 
-                        onUpdate={handleUpdate} 
-                        clients={clients} 
-                        programs={programs} 
-                        allPeople={people} 
-                        onPersonSelect={() => {}} 
-                    />
+                    <SidePanel onUpdate={handleUpdate} clients={clients} programs={programs} allPeople={people} onPersonSelect={() => {}} />
                 </div>
                  <PersonModal 
                     isOpen={isPersonModalOpen}
@@ -149,6 +145,7 @@ export default function App() {
                     onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
                     personData={editingPerson}
                 />
+                {activeProject && <ProjectHub project={activeProject} onClose={() => setActiveProject(null)} onUpdate={handleUpdate} allPeople={people} />}
             </div>
         </div>
     );
