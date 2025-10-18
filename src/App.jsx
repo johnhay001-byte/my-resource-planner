@@ -2,7 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
 import { collection, getDocs, writeBatch, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "firebase/firestore";
 import { initialClients, initialPeople, initialTasks, initialLeave, initialPrograms, initialProjects } from './data.js'; 
-import { Header, ClientFilter, Node, NetworkView, SidePanel, ProjectHub, PersonDetailCard } from './components/components.jsx';
+import { Header } from './components/Header';
+import { SidePanel } from './components/SidePanel';
+import { ClientFilter } from './components/ClientFilter';
+import { Node } from './components/Node';
+import { NetworkView } from './components/NetworkView';
+import { ProjectHub } from './components/ProjectHub';
+import { PersonDetailCard } from './components/PersonDetailCard';
 import './index.css';
 
 async function uploadInitialData() {
@@ -154,7 +160,7 @@ export default function App() {
                 }
                 break;
             case 'DELETE_NODE':
-                const { id, nodeType, clientId, programId } = action;
+                const { id, nodeType } = action;
                 if (nodeType === 'program') {
                     await deleteDoc(doc(db, 'programs', id));
                 } else if (nodeType === 'project') {
@@ -210,5 +216,4 @@ export default function App() {
         </div>
     );
 }
-
 
