@@ -24,3 +24,4 @@ export const Header = ({ viewMode, setViewMode, onUpload, isDataEmpty }) => (
         </div>
     </div>
 );
+
