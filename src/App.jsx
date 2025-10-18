@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
 import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
-import { Header, SidePanel, ClientFilter, Node, PersonModal, ProjectHub } from './components/AllComponents';
+import { Header } from './components/Header';
+import { SidePanel } from './components/SidePanel';
+import { ClientFilter } from './components/ClientFilter';
+import { Node } from './components/Node';
+import { PersonModal } from './components/PersonModal';
+import { ProjectHub } from './components/ProjectHub';
+import { NetworkView } from './components/NetworkView';
+import { PersonDetailCard } from './components/PersonDetailCard';
 import './index.css';
 
 export default function App() {
@@ -17,6 +24,8 @@ export default function App() {
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [activeProject, setActiveProject] = useState(null); 
+    const [detailedPerson, setDetailedPerson] = useState(null);
+    const [networkFocus, setNetworkFocus] = useState(null);
     
     useEffect(() => {
         const collections = {
@@ -27,18 +36,30 @@ export default function App() {
             tasks: setTasks,
         };
 
+        let loadedCount = 0;
+        const totalCollections = Object.keys(collections).length;
+
         const unsubscribers = Object.entries(collections).map(([name, setter]) => 
             onSnapshot(collection(db, name), (snapshot) => {
                 setter(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+                loadedCount++;
+                if (loadedCount === totalCollections) {
+                    setLoading(false);
+                }
+            }, (error) => {
+                console.error(`Error fetching ${name}:`, error);
+                setLoading(false);
             })
         );
-        
-        setLoading(false);
 
         return () => unsubscribers.forEach(unsub => unsub());
     }, []);
 
     const data = useMemo(() => {
+        if (!clients.length && !programs.length && !projects.length) {
+            return [];
+        }
+
         const clientTree = JSON.parse(JSON.stringify(clients));
         
         clientTree.forEach(client => {
@@ -75,6 +96,30 @@ export default function App() {
         return clientTree;
 
     }, [clients, programs, projects, people, tasks]);
+
+    const projectMap = useMemo(() => {
+        const map = new Map();
+        projects.forEach(p => map.set(p.id, p));
+        return map;
+    }, [projects]);
+
+
+    const handlePersonSelect = (personId) => {
+         if (detailedPerson?.personId === personId) {
+            setDetailedPerson(null);
+        } else {
+            const personData = people.find(p => p.id === personId);
+            setDetailedPerson(personData);
+        }
+    };
+    
+    const handleProjectSelect = (project) => {
+        const fullProjectData = {
+            ...project,
+            tasks: tasks.filter(t => t.projectId === project.id)
+        };
+        setActiveProject(fullProjectData);
+    };
 
     const handleUpdate = async (action) => {
        switch (action.type) {
@@ -120,6 +165,7 @@ export default function App() {
      };
     
     const displayedData = activeFilter === 'all' ? data : data.filter(client => client.id === activeFilter);
+    const networkData = networkFocus ? data.filter(c => c.id === networkFocus.id) : data;
 
     if (loading) {
         return <div className="flex items-center justify-center h-screen"><div className="text-xl font-semibold">Loading Data...</div></div>;
@@ -132,12 +178,22 @@ export default function App() {
                 <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
                 <div className="flex flex-1 overflow-hidden">
                     <main className="flex-1 p-8 overflow-y-auto relative">
-                       <div className="max-w-7xl mx-auto relative z-20">
-                           {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={()=>{}} onProjectSelect={(project) => setActiveProject({ ...project, tasks: tasks.filter(t => t.projectId === project.id) })} /></div>))}
-                           {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
-                        </div>
+                       {viewMode === 'orgChart' ? (
+                           <div className="max-w-7xl mx-auto relative z-20">
+                               {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={handlePersonSelect} onProjectSelect={handleProjectSelect} /></div>))}
+                               {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
+                            </div>
+                       ) : (
+                           <NetworkView data={networkData} onNodeClick={()=>{}}/>
+                       )}
                     </main>
-                    <SidePanel onUpdate={handleUpdate} clients={clients} programs={programs} allPeople={people} onPersonSelect={() => {}} />
+                    <SidePanel 
+                        onUpdate={handleUpdate} 
+                        clients={clients} 
+                        programs={programs} 
+                        allPeople={people} 
+                        onPersonSelect={handlePersonSelect} 
+                    />
                 </div>
                  <PersonModal 
                     isOpen={isPersonModalOpen}
@@ -146,6 +202,7 @@ export default function App() {
                     personData={editingPerson}
                 />
                 {activeProject && <ProjectHub project={activeProject} onClose={() => setActiveProject(null)} onUpdate={handleUpdate} allPeople={people} />}
+                {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />}
             </div>
         </div>
     );
