@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { Header } from './components/Header';
 import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
@@ -8,6 +8,9 @@ import { PersonModal } from './components/PersonModal';
 import { TeamManagementView } from './components/TeamManagementView';
 import { WorkHub } from './components/WorkHub';
 import './index.css';
+
+// We will bring these back in later steps
+const PersonDetailCard = () => null;
 
 export default function App() {
     const [clients, setClients] = useState([]);
@@ -37,8 +40,7 @@ export default function App() {
             })
         );
         
-        // A simple way to handle initial loading
-        const timer = setTimeout(() => setLoading(false), 2000); 
+        const timer = setTimeout(() => setLoading(false), 2500); 
 
         return () => {
             unsubscribers.forEach(unsub => unsub());
@@ -60,6 +62,7 @@ export default function App() {
                 });
             });
         });
+        
         return clientTree;
     }, [clients, programs, projects, people, tasks, loading]);
 
@@ -89,6 +92,21 @@ export default function App() {
             case 'DELETE_PERSON':
                 if (action.personId) await deleteDoc(doc(db, "people", action.personId));
                 break;
+            case 'ADD_TASK':
+                if (action.task) await addDoc(collection(db, 'tasks'), action.task);
+                break;
+            case 'ADD_COMMENT':
+                if (action.taskId && action.commentText) {
+                    const taskRef = doc(db, 'tasks', action.taskId);
+                    await updateDoc(taskRef, {
+                        comments: arrayUnion({
+                            id: `comm-${Date.now()}`,
+                            author: action.author,
+                            text: action.commentText
+                        })
+                    });
+                }
+                break;
         }
      };
     
@@ -103,7 +121,7 @@ export default function App() {
             case 'teamManagement':
                 return <TeamManagementView people={people} onUpdate={handleUpdate} />;
             case 'workHub':
-                return <WorkHub programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} />;
+                return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} />;
             case 'orgChart':
             default:
                 return (
