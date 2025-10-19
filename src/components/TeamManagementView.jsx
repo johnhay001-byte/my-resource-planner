@@ -2,13 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon, UsersIcon } from './Icons';
 
 // Helper function to format currency
-const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
+const formatCurrency = (value) => {
+    if (typeof value !== 'number') return '$0';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
+};
 
-export const TeamManagementView = ({ people, onPersonSelect, onUpdate }) => {
+export const TeamManagementView = ({ people, onUpdate }) => {
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
     const sortedPeople = useMemo(() => {
-        // Defensive check to ensure 'people' is an array before sorting
         let sortableItems = Array.isArray(people) ? [...people] : [];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
@@ -34,7 +36,7 @@ export const TeamManagementView = ({ people, onPersonSelect, onUpdate }) => {
     const getTeam = (person) => (person.tags || []).find(t => t.type === 'Team')?.value || 'N/A';
     
     return (
-        <div>
+        <div className="p-8">
             <div className="flex justify-between items-center mb-6">
                  <h2 className="text-2xl font-bold text-gray-800 flex items-center"><UsersIcon className="h-6 w-6 mr-3" />Team Overview</h2>
                  <button onClick={() => onUpdate({ type: 'ADD_PERSON' })} className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700">
@@ -59,7 +61,7 @@ export const TeamManagementView = ({ people, onPersonSelect, onUpdate }) => {
                     <tbody className="bg-white divide-y divide-gray-200">
                         {sortedPeople.map((person) => (
                             <tr key={person.id}>
-                                <td onClick={() => onPersonSelect(person.personId)} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer hover:underline">{person.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{person.name}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{person.role}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getTeam(person)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(person.totalMonthlyCost)}</td>
