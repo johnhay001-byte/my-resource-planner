@@ -8,11 +8,16 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
             if (personData) {
                 setPerson(personData);
             } else {
+                // Default for a new person
                 setPerson({
-                    name: '', role: '', email: '', clientPrimary: 'unassigned',
-                    resourceType: 'Full-Time',
+                    name: '',
+                    role: '',
+                    email: '',
+                    clientPrimary: 'unassigned',
+                    resourceType: 'Full-Time', // Default resource type
                     tags: [{ type: 'Team', value: 'Account Management' }, { type: 'Location', value: 'London' }],
-                    totalMonthlyCost: 5000, billableRatePerHour: 100,
+                    totalMonthlyCost: 5000,
+                    billableRatePerHour: 100,
                 });
             }
         }
@@ -27,11 +32,10 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
 
     const handleTagChange = (e) => {
         const { name, value } = e.target;
-        const newTags = (person.tags || []).map(tag => tag.type === name ? { ...tag, value } : tag);
-        if (!newTags.some(tag => tag.type === name)) {
-            newTags.push({ type: name, value });
-        }
-        setPerson(prev => ({ ...prev, tags: newTags }));
+        setPerson(prev => ({
+            ...prev,
+            tags: (prev.tags || []).map(tag => tag.type === name ? { ...tag, value } : tag)
+        }));
     };
 
     const handleSave = () => {
@@ -47,7 +51,7 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
             <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-lg animate-fade-in-fast">
-                <h2 className="text-2xl font-bold mb-6">{personData ? 'Edit Resource' : 'Add New Resource'}</h2>
+                <h2 className="text-2xl font-bold mb-6">{personData ? 'Edit Person' : 'Add New Person'}</h2>
                 <div className="space-y-4">
                     <input type="text" name="name" value={person.name || ''} onChange={handleChange} placeholder="Full Name" className="w-full p-2 border rounded-md" />
                     <input type="email" name="email" value={person.email || ''} onChange={handleChange} placeholder="Email" className="w-full p-2 border rounded-md" />

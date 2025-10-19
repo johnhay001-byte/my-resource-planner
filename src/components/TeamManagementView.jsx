@@ -1,20 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon, UsersIcon } from './Icons';
 
-const formatCurrency = (value) => {
-    if (typeof value !== 'number') return '$0';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
-};
+// Helper function to format currency
+const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
 
 export const TeamManagementView = ({ people, onPersonSelect, onUpdate }) => {
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
     const sortedPeople = useMemo(() => {
+        // Defensive check to ensure 'people' is an array before sorting
         let sortableItems = Array.isArray(people) ? [...people] : [];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
                 const aVal = sortConfig.key === 'team' ? ((a.tags || []).find(t => t.type === 'Team')?.value || '') : a[sortConfig.key];
                 const bVal = sortConfig.key === 'team' ? ((b.tags || []).find(t => t.type === 'Team')?.value || '') : b[sortConfig.key];
+                
                 if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
                 if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;
