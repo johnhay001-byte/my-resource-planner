@@ -56,8 +56,9 @@ export default function App() {
     }, []);
 
     const data = useMemo(() => {
-        if (!clients.length && !programs.length && !projects.length) {
-            return [];
+        // This is the fix: Defensive check to ensure all data arrays are ready before processing
+        if (loading || !clients.length || !programs.length || !projects.length || !people.length || !tasks.length) {
+            return []; // Return an empty array while data is loading
         }
 
         const clientTree = JSON.parse(JSON.stringify(clients));
@@ -92,17 +93,14 @@ export default function App() {
                  }
             }
         });
-
         return clientTree;
-
-    }, [clients, programs, projects, people, tasks]);
+    }, [clients, programs, projects, people, tasks, loading]);
 
     const projectMap = useMemo(() => {
         const map = new Map();
         projects.forEach(p => map.set(p.id, p));
         return map;
     }, [projects]);
-
 
     const handlePersonSelect = (personId) => {
          if (detailedPerson?.personId === personId) {
