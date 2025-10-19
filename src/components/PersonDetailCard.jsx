@@ -1,22 +1,31 @@
 import React, { useMemo } from 'react';
 import { MailIcon } from './Icons';
 
-const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatCurrency = (value) => {
+    if (typeof value !== 'number') return '$0';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
+};
+
 
 export const PersonDetailCard = ({ person, onClose, projectMap, tasks }) => {
     if (!person) return null;
 
     const personAssignments = useMemo(() => {
         return (tasks || [])
-            .filter(t => t.assigneeId === person.personId)
-            .map(t => ({
-                projectId: t.projectId,
-                projectName: projectMap.get(t.projectId)?.name || 'Unknown Project',
-                startDate: t.startDate,
-                endDate: t.endDate,
-            }));
-    }, [tasks, person.personId, projectMap]);
+            .filter(t => t.assigneeId === person.id)
+            .map(t => {
+                const project = projectMap.get(t.projectId);
+                return {
+                    ...t,
+                    projectName: project ? project.name : 'Unknown Project',
+                };
+            });
+    }, [tasks, person.id, projectMap]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50" onClick={onClose}>
@@ -44,7 +53,7 @@ export const PersonDetailCard = ({ person, onClose, projectMap, tasks }) => {
                     <div className="space-y-3">
                         {personAssignments.length > 0 ? personAssignments.map((ass, i) => (
                             <div key={i} className="bg-gray-50 p-3 rounded-md">
-                                <p className="font-medium">{ass.projectName}</p>
+                                <p className="font-medium">{ass.projectName}: {ass.name}</p>
                                 <p className="text-xs text-gray-500 mt-1">{formatDate(ass.startDate)} - {formatDate(ass.endDate)}</p>
                             </div>
                         )) : <p className="text-sm text-gray-500">No active assignments.</p>}
@@ -54,3 +63,4 @@ export const PersonDetailCard = ({ person, onClose, projectMap, tasks }) => {
         </div>
     );
 };
+
