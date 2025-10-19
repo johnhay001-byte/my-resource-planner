@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { PlusIcon, MessageSquareIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon, EditIcon } from './Icons';
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdate }) => {
@@ -98,12 +98,18 @@ const Project = ({ project, allPeople, onUpdate }) => {
 const TaskItem = ({ task, allPeople, onUpdate }) => {
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingTask, setEditingTask] = useState(task);
     const assignee = allPeople.find(p => p.id === task.assigneeId);
 
     const handleAddComment = () => {
         if (!newComment.trim()) return;
         onUpdate({ type: 'ADD_COMMENT', taskId: task.id, commentText: newComment, author: 'User' });
         setNewComment('');
+    };
+
+    const handleAssigneeChange = (e) => {
+        onUpdate({ type: 'UPDATE_TASK_ASSIGNEE', taskId: task.id, assigneeId: e.target.value });
     };
 
     return (
@@ -113,7 +119,10 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                     <p className="font-semibold">{task.name}</p>
                     <div className="text-xs text-gray-500 flex items-center gap-3 mt-1">
                         <span>Status: {task.status}</span>
-                        <span>Assignee: {assignee ? assignee.name : 'Unassigned'}</span>
+                        <select value={task.assigneeId || ''} onChange={handleAssigneeChange} className="text-xs bg-transparent border-none p-0">
+                            <option value="">Unassigned</option>
+                            {allPeople.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
                         <span>Dates: {formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
                     </div>
                 </div>

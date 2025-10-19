@@ -62,7 +62,6 @@ export default function App() {
                 });
             });
         });
-        
         return clientTree;
     }, [clients, programs, projects, people, tasks, loading]);
 
@@ -94,6 +93,12 @@ export default function App() {
                 break;
             case 'ADD_TASK':
                 if (action.task) await addDoc(collection(db, 'tasks'), action.task);
+                break;
+            case 'UPDATE_TASK_ASSIGNEE':
+                if (action.taskId && action.assigneeId) {
+                    const taskRef = doc(db, 'tasks', action.taskId);
+                    await updateDoc(taskRef, { assigneeId: action.assigneeId });
+                }
                 break;
             case 'ADD_COMMENT':
                 if (action.taskId && action.commentText) {
@@ -129,7 +134,7 @@ export default function App() {
                         <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
                         <main className="p-8">
                            <div className="max-w-7xl mx-auto">
-                               {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
+                               {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={()=>{}} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
                                {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                             </div>
                        </main>
