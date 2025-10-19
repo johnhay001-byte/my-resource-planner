@@ -6,6 +6,7 @@ import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
 import { PersonModal } from './components/PersonModal';
 import { TeamManagementView } from './components/TeamManagementView';
+import { WorkHub } from './components/WorkHub';
 import './index.css';
 
 export default function App() {
@@ -30,23 +31,19 @@ export default function App() {
             tasks: setTasks,
         };
 
-        let loadedCount = 0;
-        const totalCollections = Object.keys(collections).length;
-
         const unsubscribers = Object.entries(collections).map(([name, setter]) => 
             onSnapshot(collection(db, name), (snapshot) => {
                 setter(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-                loadedCount++;
-                if (loadedCount === totalCollections) {
-                    setLoading(false);
-                }
-            }, (error) => {
-                console.error(`Error fetching ${name}:`, error);
-                setLoading(false);
             })
         );
+        
+        // A simple way to handle initial loading
+        const timer = setTimeout(() => setLoading(false), 2000); 
 
-        return () => unsubscribers.forEach(unsub => unsub());
+        return () => {
+            unsubscribers.forEach(unsub => unsub());
+            clearTimeout(timer);
+        };
     }, []);
 
     const data = useMemo(() => {
@@ -62,26 +59,6 @@ export default function App() {
                     project.children = people.filter(p => assignedPeopleIds.has(p.personId));
                 });
             });
-        });
-
-         clientTree.forEach(client => {
-            const peopleOnTasksInClient = new Set();
-            (client.children || []).forEach(p => (p.children || []).forEach(proj => (proj.children || []).forEach(person => peopleOnTasksInClient.add(person.personId))));
-            
-            const primaryPeople = people.filter(p => p.clientPrimary === client.name && !peopleOnTasksInClient.has(p.personId));
-            
-            if(primaryPeople.length > 0) {
-                 const generalProgram = (client.children || []).find(p => p.name === 'Client Management & Operations');
-                 if (generalProgram) {
-                    const generalProject = (generalProgram.children || []).find(p => p.name === 'General Account Management');
-                    if (generalProject) {
-                         if (!generalProject.children) generalProject.children = [];
-                         const existingPeople = new Set(generalProject.children.map(p => p.personId));
-                         const newPeople = primaryPeople.filter(p => !existingPeople.has(p.personId));
-                        generalProject.children.push(...newPeople);
-                    }
-                 }
-            }
         });
         return clientTree;
     }, [clients, programs, projects, people, tasks, loading]);
@@ -121,25 +98,33 @@ export default function App() {
         return <div className="flex items-center justify-center h-screen"><div className="text-xl font-semibold">Loading Data...</div></div>;
     }
 
-    return (
-        <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
-            <div className="flex flex-col h-screen">
-                <Header viewMode={viewMode} setViewMode={setViewMode} />
-                {viewMode === 'orgChart' && <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />}
-                
-                <div className="flex-1 overflow-y-auto">
-                    {viewMode === 'orgChart' ? (
-                       <main className="p-8">
+    const renderView = () => {
+        switch (viewMode) {
+            case 'teamManagement':
+                return <TeamManagementView people={people} onUpdate={handleUpdate} />;
+            case 'workHub':
+                return <WorkHub programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} />;
+            case 'orgChart':
+            default:
+                return (
+                    <>
+                        <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                        <main className="p-8">
                            <div className="max-w-7xl mx-auto">
                                {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
                                {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                             </div>
                        </main>
-                    ) : (
-                        <TeamManagementView people={people} onUpdate={handleUpdate} onPersonSelect={() => {}} />
-                    )}
-                </div>
+                    </>
+                );
+        }
+    };
 
+    return (
+        <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
+            <div className="flex flex-col h-screen">
+                <Header viewMode={viewMode} setViewMode={setViewMode} />
+                <div className="flex-1 overflow-y-auto">{renderView()}</div>
                  <PersonModal 
                     isOpen={isPersonModalOpen}
                     onClose={() => setIsPersonModalOpen(false)}
