@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { PlusIcon, MessageSquareIcon, EditIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon } from './Icons';
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
+    // Add T00:00:00 to ensure date is parsed in UTC and not affected by local timezone
     return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
@@ -98,8 +99,6 @@ const Project = ({ project, allPeople, onUpdate }) => {
 const TaskItem = ({ task, allPeople, onUpdate }) => {
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
-    const [isEditing, setIsEditing] = useState(false);
-    const [editingTask, setEditingTask] = useState(task);
     const assignee = allPeople.find(p => p.id === task.assigneeId);
 
     const handleAddComment = () => {
@@ -119,7 +118,7 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                     <p className="font-semibold">{task.name}</p>
                     <div className="text-xs text-gray-500 flex items-center gap-3 mt-1">
                         <span>Status: {task.status}</span>
-                        <select value={task.assigneeId || ''} onChange={handleAssigneeChange} className="text-xs bg-transparent border-none p-0">
+                        <select value={task.assigneeId || ''} onChange={handleAssigneeChange} className="text-xs bg-transparent border-none p-0 focus:ring-0">
                             <option value="">Unassigned</option>
                             {allPeople.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
