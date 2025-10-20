@@ -7,11 +7,11 @@ import { Node } from './components/Node';
 import { PersonModal } from './components/PersonModal';
 import { TeamManagementView } from './components/TeamManagementView';
 import { WorkHub } from './components/WorkHub';
+import { PersonDetailCard } from './components/PersonDetailCard';
 import './index.css';
 
-// We will bring these back in later steps
-const PersonDetailCard = () => null;
-const ProjectHub = () => null; 
+// We will bring this back in the final step
+const NetworkView = () => null; 
 
 export default function App() {
     const [clients, setClients] = useState([]);
@@ -25,6 +25,8 @@ export default function App() {
     const [viewMode, setViewMode] = useState('orgChart');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
+    const [activeProject, setActiveProject] = useState(null); 
+    const [detailedPerson, setDetailedPerson] = useState(null);
     
     useEffect(() => {
         const collections = {
@@ -65,7 +67,26 @@ export default function App() {
         });
         return clientTree;
     }, [clients, programs, projects, people, tasks, loading]);
+    
+    const projectMap = useMemo(() => {
+        const map = new Map();
+        projects.forEach(p => map.set(p.id, p));
+        return map;
+    }, [projects]);
 
+
+    const handlePersonSelect = (personId) => {
+         if (detailedPerson?.id === personId) {
+            setDetailedPerson(null);
+        } else {
+            const personData = people.find(p => p.id === personId);
+            setDetailedPerson(personData);
+        }
+    };
+    
+    const handleProjectSelect = (project) => {
+        // This will be used when we build the full Project Hub modal
+    };
 
     const handleUpdate = async (action) => {
        switch (action.type) {
@@ -125,7 +146,7 @@ export default function App() {
     const renderView = () => {
         switch (viewMode) {
             case 'teamManagement':
-                return <TeamManagementView people={people} onUpdate={handleUpdate} />;
+                return <TeamManagementView people={people} onUpdate={handleUpdate} onPersonSelect={handlePersonSelect} />;
             case 'workHub':
                 return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} />;
             case 'orgChart':
@@ -135,7 +156,7 @@ export default function App() {
                         <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
                         <main className="p-8">
                            <div className="max-w-7xl mx-auto">
-                               {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={()=>{}} onPersonSelect={()=>{}} onProjectSelect={()=>{}} /></div>))}
+                               {displayedData.map((client) => (<div key={client.id} className="mb-8"><Node node={client} level={0} onUpdate={handleUpdate} onPersonSelect={handlePersonSelect} onProjectSelect={handleProjectSelect} /></div>))}
                                {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                             </div>
                        </main>
@@ -155,6 +176,7 @@ export default function App() {
                     onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
                     personData={editingPerson}
                 />
+                {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />}
             </div>
         </div>
     );
