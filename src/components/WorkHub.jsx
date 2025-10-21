@@ -192,6 +192,3 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
         </div>
     );
 };
-```
-
----
