@@ -49,3 +49,4 @@ export const TaskModal = ({ isOpen, onClose, onSave, taskData, allPeople }) => {
         </div>
     );
 };
+

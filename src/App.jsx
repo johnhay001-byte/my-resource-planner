@@ -8,8 +8,11 @@ import { PersonModal } from './components/PersonModal';
 import { TeamManagementView } from './components/TeamManagementView';
 import { WorkHub } from './components/WorkHub';
 import { PersonDetailCard } from './components/PersonDetailCard';
-import { NetworkView } from './components/NetworkView';
+import { TaskModal } from './components/TaskModal';
 import './index.css';
+
+// We will bring this back in a future step
+const NetworkView = () => null; 
 
 export default function App() {
     const [clients, setClients] = useState([]);
@@ -22,10 +25,13 @@ export default function App() {
     const [activeFilter, setActiveFilter] = useState('all');
     const [viewMode, setViewMode] = useState('orgChart');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
+    const [editingTask, setEditingTask] = useState(null);
     const [detailedPerson, setDetailedPerson] = useState(null);
     
     useEffect(() => {
+        // ... (useEffect remains the same)
         const collections = {
             clients: setClients,
             programs: setPrograms,
@@ -33,25 +39,19 @@ export default function App() {
             people: setPeople,
             tasks: setTasks,
         };
-
         const unsubscribers = Object.entries(collections).map(([name, setter]) => 
             onSnapshot(collection(db, name), (snapshot) => {
                 setter(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
             })
         );
-        
         const timer = setTimeout(() => setLoading(false), 2500); 
-
-        return () => {
-            unsubscribers.forEach(unsub => unsub());
-            clearTimeout(timer);
-        };
+        return () => { unsubscribers.forEach(unsub => unsub()); clearTimeout(timer); };
     }, []);
 
     const data = useMemo(() => {
+        // ... (data memo remains the same)
         if (loading) return [];
         const clientTree = JSON.parse(JSON.stringify(clients));
-        
         clientTree.forEach(client => {
             client.children = programs.filter(p => p.clientId === client.id);
             (client.children || []).forEach(program => {
@@ -71,9 +71,8 @@ export default function App() {
         return map;
     }, [projects]);
 
-
     const handlePersonSelect = (personId) => {
-         if (detailedPerson?.id === personId) {
+        if (detailedPerson?.id === personId) {
             setDetailedPerson(null);
         } else {
             const personData = people.find(p => p.id === personId);
@@ -83,17 +82,11 @@ export default function App() {
 
     const handleUpdate = async (action) => {
        switch (action.type) {
-            case 'ADD_PERSON':
-                setEditingPerson(null);
-                setIsPersonModalOpen(true);
-                break;
-            case 'EDIT_PERSON':
-                setEditingPerson(action.person);
-                setIsPersonModalOpen(true);
-                break;
+            // ... (Person management cases remain the same)
+            case 'ADD_PERSON': setEditingPerson(null); setIsPersonModalOpen(true); break;
+            case 'EDIT_PERSON': setEditingPerson(action.person); setIsPersonModalOpen(true); break;
             case 'SAVE_PERSON':
-                setIsPersonModalOpen(false);
-                setEditingPerson(null);
+                setIsPersonModalOpen(false); setEditingPerson(null);
                 if (action.person.id) { 
                     const personRef = doc(db, "people", action.person.id);
                     const { id, ...personData } = action.person;
@@ -103,11 +96,18 @@ export default function App() {
                     await addDoc(collection(db, "people"), newPerson);
                 }
                 break;
-            case 'DELETE_PERSON':
-                if (action.personId) await deleteDoc(doc(db, "people", action.personId));
-                break;
-            case 'ADD_TASK':
-                if (action.task) await addDoc(collection(db, 'tasks'), action.task);
+            case 'DELETE_PERSON': if (action.personId) await deleteDoc(doc(db, "people", action.personId)); break;
+            
+            // New Task Management Cases
+            case 'ADD_TASK': if (action.task) await addDoc(collection(db, 'tasks'), action.task); break;
+            case 'EDIT_TASK': setEditingTask(action.task); setIsTaskModalOpen(true); break;
+            case 'SAVE_TASK':
+                setIsTaskModalOpen(false); setEditingTask(null);
+                if (action.task.id) {
+                    const taskRef = doc(db, 'tasks', action.task.id);
+                    const { id, ...taskData } = action.task;
+                    await setDoc(taskRef, taskData, { merge: true });
+                }
                 break;
             case 'UPDATE_TASK_ASSIGNEE':
                 if (action.taskId) {
@@ -119,11 +119,7 @@ export default function App() {
                 if (action.taskId && action.commentText) {
                     const taskRef = doc(db, 'tasks', action.taskId);
                     await updateDoc(taskRef, {
-                        comments: arrayUnion({
-                            id: `comm-${Date.now()}`,
-                            author: action.author,
-                            text: action.commentText
-                        })
+                        comments: arrayUnion({ id: `comm-${Date.now()}`, author: action.author, text: action.commentText })
                     });
                 }
                 break;
@@ -142,12 +138,6 @@ export default function App() {
                 return <TeamManagementView people={people} tasks={tasks} onUpdate={handleUpdate} onPersonSelect={handlePersonSelect} />;
             case 'workHub':
                 return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} />;
-            case 'network':
-                return (
-                    <main className="p-8 h-full">
-                        <NetworkView data={data} onNodeClick={() => {}} />
-                    </main>
-                );
             case 'orgChart':
             default:
                 return (
@@ -174,6 +164,13 @@ export default function App() {
                     onClose={() => setIsPersonModalOpen(false)}
                     onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
                     personData={editingPerson}
+                />
+                 <TaskModal 
+                    isOpen={isTaskModalOpen}
+                    onClose={() => setIsTaskModalOpen(false)}
+                    onSave={(task) => handleUpdate({ type: 'SAVE_TASK', task })}
+                    taskData={editingTask}
+                    allPeople={people}
                 />
                 {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />}
             </div>
