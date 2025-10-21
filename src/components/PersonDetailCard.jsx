@@ -11,9 +11,26 @@ const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
 };
 
+// Helper to get the start and end of the current week
+const getWeekRange = () => {
+    const now = new Date();
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))); // Monday
+    const endOfWeek = new Date(now.setDate(startOfWeek.getDate() + 6)); // Sunday
+    return { start: startOfWeek, end: endOfWeek };
+};
 
 export const PersonDetailCard = ({ person, onClose, projectMap, tasks }) => {
     if (!person) return null;
+
+    const { weeklyHours, utilizationPercentage } = useMemo(() => {
+        const { start, end } = getWeekRange();
+        const weeklyTasks = (tasks || []).filter(t => {
+            const taskStartDate = new Date(t.startDate + 'T00:00:00');
+            return t.assigneeId === person.id && taskStartDate >= start && taskStartDate <= end;
+        });
+        const totalHours = weeklyTasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0);
+        return { weeklyHours: totalHours, utilizationPercentage: (totalHours / 40) * 100 };
+    }, [tasks, person.id]);
 
     const personAssignments = useMemo(() => {
         return (tasks || [])
@@ -33,24 +50,18 @@ export const PersonDetailCard = ({ person, onClose, projectMap, tasks }) => {
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
                 <h2 className="text-3xl font-bold">{person.name}</h2>
                 <p className="text-lg text-gray-600 mb-4">{person.role}</p>
-                <div className="flex items-center text-gray-700 mb-4"><MailIcon className="h-5 w-5 mr-3" /><a href={`mailto:${person.email}`} className="hover:underline">{person.email}</a></div>
                 
-                 <div className="mb-6"><h3 className="font-semibold text-gray-700 mb-2">Financials</h3>
-                    <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-md">
-                        <div>
-                            <p className="text-sm text-gray-500">Monthly Cost</p>
-                            <p className="text-lg font-semibold">{formatCurrency(person.totalMonthlyCost)}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-500">Billable Rate</p>
-                            <p className="text-lg font-semibold">{formatCurrency(person.billableRatePerHour)}/hr</p>
-                        </div>
+                <div className="mb-6">
+                    <h3 className="font-semibold text-gray-700 mb-2">This Week's Utilization</h3>
+                    <div className="bg-gray-200 rounded-full h-4">
+                        <div className="bg-purple-600 h-4 rounded-full" style={{ width: `${utilizationPercentage}%` }}></div>
                     </div>
+                    <p className="text-sm text-gray-600 mt-2">{weeklyHours} / 40 hours assigned</p>
                 </div>
-
+                
                 <div className="mb-6">
                     <h3 className="font-semibold text-gray-700 mb-2">Current Assignments</h3>
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
                         {personAssignments.length > 0 ? personAssignments.map((ass, i) => (
                             <div key={i} className="bg-gray-50 p-3 rounded-md">
                                 <p className="font-medium">{ass.projectName}: {ass.name}</p>
