@@ -1,14 +1,50 @@
 import React, { useState, useMemo } from 'react';
-import { PlusIcon, MessageSquareIcon, EditIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon } from './Icons';
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+// --- MAIN WORK HUB COMPONENT ---
 export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdate }) => {
+    const [hubView, setHubView] = useState('allProjects'); // 'allProjects' or 'myTasks'
     
-    const workData = useMemo(() => {
+    // For now, we'll hardcode our "current user" to Adena Phillips for prototyping
+    const currentUser = useMemo(() => allPeople.find(p => p.name === 'Adena Phillips'), [allPeople]);
+
+    const myTasks = useMemo(() => {
+        if (!currentUser) return [];
+        return tasks.filter(t => t.assigneeId === currentUser.id);
+    }, [tasks, currentUser]);
+
+    return (
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
+                 <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
+                    <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
+                    </button>
+                    <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
+                    </button>
+                </div>
+            </div>
+            {hubView === 'allProjects' ? (
+                <AllProjectsView clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />
+            ) : (
+                <MyTasksView tasks={myTasks} allPeople={allPeople} onUpdate={onUpdate} projects={projects} />
+            )}
+        </div>
+    );
+};
+
+
+// --- SUB-COMPONENTS FOR WORK HUB ---
+
+const AllProjectsView = ({ clients, programs, projects, tasks, allPeople, onUpdate }) => {
+     const workData = useMemo(() => {
         return clients.map(client => ({
             ...client,
             children: programs
@@ -24,32 +60,55 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 }))
         }));
     }, [clients, programs, projects, tasks]);
+    
+    return (
+        <div className="space-y-8">
+            {workData.map(client => (
+                <div key={client.id} className="bg-white p-6 rounded-lg border">
+                    <h3 className="text-xl font-bold text-purple-800">{client.name}</h3>
+                    <div className="pl-4 mt-4 space-y-6 border-l-2">
+                        {client.children.map(program => (
+                            <div key={program.id}>
+                                <h4 className="text-lg font-semibold text-blue-800">{program.name}</h4>
+                                <div className="pl-4 mt-2 space-y-4">
+                                    {program.children.map(project => (
+                                        <Project key={project.id} project={project} allPeople={allPeople} onUpdate={onUpdate} />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const MyTasksView = ({ tasks, allPeople, onUpdate, projects }) => {
+    if (!tasks || tasks.length === 0) {
+        return <div className="bg-white p-8 rounded-lg border text-center text-gray-500">You have no tasks assigned to you.</div>
+    }
+
+    const getProjectName = (projectId) => {
+        const project = projects.find(p => p.id === projectId);
+        return project ? project.name : 'Unknown Project';
+    };
 
     return (
-        <div className="p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Work Hub</h2>
-            <div className="space-y-8">
-                {workData.map(client => (
-                    <div key={client.id} className="bg-white p-6 rounded-lg border">
-                        <h3 className="text-xl font-bold text-purple-800">{client.name}</h3>
-                        <div className="pl-4 mt-4 space-y-6 border-l-2">
-                            {client.children.map(program => (
-                                <div key={program.id}>
-                                    <h4 className="text-lg font-semibold text-blue-800">{program.name}</h4>
-                                    <div className="pl-4 mt-2 space-y-4">
-                                        {program.children.map(project => (
-                                            <Project key={project.id} project={project} allPeople={allPeople} onUpdate={onUpdate} />
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+         <div className="bg-white p-6 rounded-lg border">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">My Assigned Tasks</h3>
+            <div className="divide-y divide-gray-200">
+                {tasks.map(task => (
+                    <div key={task.id} className="py-3">
+                        <p className="font-semibold">{task.name}</p>
+                        <p className="text-sm text-gray-500">{getProjectName(task.projectId)}</p>
                     </div>
                 ))}
             </div>
         </div>
     );
 };
+
 
 const Project = ({ project, allPeople, onUpdate }) => {
     const [newTaskName, setNewTaskName] = useState('');
@@ -124,9 +183,6 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                         <span>Dates: {formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
                     </div>
                 </div>
-                <button onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })} className="p-2 text-gray-500 hover:text-indigo-600">
-                    <EditIcon className="h-5 w-5" />
-                </button>
                 <button onClick={() => setShowComments(!showComments)} className="p-2 text-gray-500 hover:text-purple-600">
                     <MessageSquareIcon className="h-5 w-5" />
                 </button>
