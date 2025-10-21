@@ -1,9 +1,5 @@
 import React from 'react';
-import { ListTreeIcon, UsersIcon } from './Icons';
-
-// A new briefcase icon for our Work Hub
-const BriefcaseIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>);
-
+import { ListTreeIcon, UsersIcon, BriefcaseIcon, Share2Icon } from './Icons';
 
 export const Header = ({ viewMode, setViewMode }) => (
     <div className="p-6 bg-white border-b border-gray-200 flex justify-between items-center">
@@ -20,6 +16,9 @@ export const Header = ({ viewMode, setViewMode }) => (
             </button>
              <button onClick={() => setViewMode('workHub')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'workHub' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
                 <BriefcaseIcon className="h-5 w-5 mr-2" /> Work Hub
+            </button>
+            <button onClick={() => setViewMode('network')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'network' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                <Share2Icon className="h-5 w-5 mr-2" /> Network View
             </button>
         </div>
     </div>

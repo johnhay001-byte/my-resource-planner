@@ -82,3 +82,4 @@ export const NetworkView = ({ data, onNodeClick }) => {
 
     return <svg ref={svgRef} className="w-full h-full bg-gray-50 rounded-lg"></svg>;
 };
+
