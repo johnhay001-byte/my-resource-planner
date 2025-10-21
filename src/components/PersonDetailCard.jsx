@@ -11,11 +11,14 @@ const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
 };
 
-// Helper to get the start and end of the current week
+// Helper to get the start and end of the current week (Monday to Sunday)
 const getWeekRange = () => {
     const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))); // Monday
-    const endOfWeek = new Date(now.setDate(startOfWeek.getDate() + 6)); // Sunday
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))); 
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
     return { start: startOfWeek, end: endOfWeek };
 };
 
@@ -25,11 +28,12 @@ export const PersonDetailCard = ({ person, onClose, projectMap, tasks }) => {
     const { weeklyHours, utilizationPercentage } = useMemo(() => {
         const { start, end } = getWeekRange();
         const weeklyTasks = (tasks || []).filter(t => {
+            if (!t.startDate) return false;
             const taskStartDate = new Date(t.startDate + 'T00:00:00');
             return t.assigneeId === person.id && taskStartDate >= start && taskStartDate <= end;
         });
-        const totalHours = weeklyTasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0);
-        return { weeklyHours: totalHours, utilizationPercentage: (totalHours / 40) * 100 };
+        const totalHours = weeklyTasks.reduce((sum, task) => sum + (Number(task.estimatedHours) || 0), 0);
+        return { weeklyHours: totalHours, utilizationPercentage: Math.min((totalHours / 40) * 100, 100) };
     }, [tasks, person.id]);
 
     const personAssignments = useMemo(() => {
