@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { PlusIcon, MessageSquareIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon, EditIcon } from './Icons';
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    // Add T00:00:00 to ensure date is parsed in UTC and not affected by local timezone
     return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
@@ -125,6 +124,9 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                         <span>Dates: {formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
                     </div>
                 </div>
+                <button onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })} className="p-2 text-gray-500 hover:text-indigo-600">
+                    <EditIcon className="h-5 w-5" />
+                </button>
                 <button onClick={() => setShowComments(!showComments)} className="p-2 text-gray-500 hover:text-purple-600">
                     <MessageSquareIcon className="h-5 w-5" />
                 </button>
