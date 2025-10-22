@@ -20,9 +20,7 @@ export const Header = ({ viewMode, setViewMode, handleSignOut }) => (
                 </button>
                 <button onClick={() => setViewMode('financials')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'financials' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
                     <DollarSignIcon className="h-5 w-5 mr-2" /> Financials
-                {/* ▼▼▼ THIS IS THE FIX ▼▼▼ */}
                 </button> 
-                {/* ▲▲▲ Was </T> before, now corrected to </button> ▲▲▲ */}
             </div>
              <button onClick={handleSignOut} className="p-3 bg-gray-200 rounded-lg text-gray-600 hover:bg-red-100 hover:text-red-600 transition-colors" title="Sign Out">
                 <LogOutIcon className="h-5 w-5" />
@@ -30,5 +28,4 @@ export const Header = ({ viewMode, setViewMode, handleSignOut }) => (
         </div>
     </div>
 );
-```
 
