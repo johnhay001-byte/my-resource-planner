@@ -2,24 +2,21 @@ import React, { useState, useMemo } from 'react';
 import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon, SearchIcon } from './Icons';
 
 const formatDate = (dateString) => {
-    // ... (no change)
+    if (!dateString) return 'N/A';
+    return new Date(dateString + 'T00:00:00').toLocaleString('en-US', { month: 'short', day: 'numeric' });
 };
 
-// ▼▼▼ Add currentUser as a prop ▼▼▼
 export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdate, currentUser }) => {
     const [hubView, setHubView] = useState('allProjects');
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
 
-    // ▼▼▼ CHANGE THIS LOGIC ▼▼▼
-    // Find the user's profile from the 'people' list by matching the logged-in user's email
     const currentUserProfile = useMemo(() => {
         if (!currentUser) return null;
         return allPeople.find(p => p.email === currentUser.email);
     }, [allPeople, currentUser]);
 
     const myTasks = useMemo(() => {
-        // Use the found profile to filter tasks
         if (!currentUserProfile) return [];
         let filtered = tasks.filter(t => t.assigneeId === currentUserProfile.id);
         
@@ -33,20 +30,43 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
     }, [tasks, currentUserProfile, searchTerm, statusFilter]);
     
     const projectsWithTasks = useMemo(() => {
-        // ... (no change)
+        return projects.map(project => ({
+            ...project,
+            tasks: tasks.filter(t => t.projectId === project.id)
+        }));
     }, [projects, tasks]);
 
     const displayedProjects = useMemo(() => {
-        // ... (no change)
+        const lowercasedSearchTerm = searchTerm.toLowerCase();
+
+        const projectsWithFilteredTasks = projectsWithTasks.map(project => ({
+            ...project,
+            tasks: project.tasks.filter(task => {
+                const searchMatch = !searchTerm || task.name.toLowerCase().includes(lowercasedSearchTerm);
+                const statusMatch = statusFilter === 'All' || task.status === statusFilter;
+                return searchMatch && statusMatch;
+            })
+        }));
+
+        return projectsWithFilteredTasks.filter(project => {
+            const projectNameMatch = !searchTerm || project.name.toLowerCase().includes(lowercasedSearchTerm);
+            return projectNameMatch || project.tasks.length > 0;
+        });
     }, [projectsWithTasks, searchTerm, statusFilter]);
 
+    // ▼▼▼ THIS IS THE RESTORED FUNCTION BODY ▼▼▼
     const renderAllProjects = () => (
-        // ... (no change)
+        <div className="space-y-6">
+            {displayedProjects.map(project => (
+                <ProjectCard key={project.id} project={project} allPeople={allPeople} onUpdate={onUpdate} />
+            ))}
+             {displayedProjects.length === 0 && <p className="text-center text-gray-500 py-10">No projects or tasks match your filters.</p>}
+        </div>
     );
+    // ▲▲▲ END OF RESTORED FUNCTION BODY ▲▲▲
 
     const renderMyTasks = () => (
         <div className="bg-white rounded-lg shadow-md p-6">
-            {/* ▼▼▼ Update the header to be dynamic ▼▼▼ */}
             <h3 className="text-xl font-bold mb-4">
                 Tasks for {currentUserProfile ? currentUserProfile.name : (currentUser?.email || 'Me')}
             </h3>
@@ -63,7 +83,6 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
 
     return (
         <div className="p-8">
-            {/* ... (no change to header or filter controls) ... */}
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
@@ -78,6 +97,8 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                     </button>
                 </div>
             </div>
+
+            {/* Filter and Search Controls */}
             <div className="mb-6 flex items-center gap-4">
                 <div className="relative flex-grow">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -92,7 +113,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 <div className="flex items-center space-x-2 p-1 bg-gray-100 rounded-lg">
                     <span className="text-sm font-semibold text-gray-600 px-2">Status:</span>
                     {['All', 'To Do', 'In Progress', 'Done'].map(status => (
-                        <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                        <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
                             {status}
                         </button>
                     ))}
@@ -104,44 +125,80 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
     );
 };
 
-// ... (No change to ProjectCard or TaskItem components) ...
-
 const ProjectCard = ({ project, allPeople, onUpdate }) => {
-    // ... (no change)
+    return (
+        <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-bold mb-4">{project.name}</h3>
+            <div className="space-y-3">
+                {project.tasks.map(task => (
+                    <TaskItem key={task.id} task={task} allPeople={allPeople} onUpdate={onUpdate} />
+                ))}
+                {project.tasks.length === 0 && <p className="text-sm text-gray-500">No tasks match the current filters.</p>}
+            </div>
+        </div>
+    );
 };
 
 const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
-    // ... (no change)
+    const [showComments, setShowComments] = useState(false);
+    const [newComment, setNewComment] = useState('');
+    const assignee = allPeople.find(p => p.id === task.assigneeId);
+
+    const handleAddComment = () => {
+        if (!newComment.trim()) return;
+        onUpdate({ type: 'ADD_COMMENT', taskId: task.id, commentText: newComment, author: 'User' });
+        setNewComment('');
+    };
+    
+    const statusColors = { 'To Do': 'bg-gray-200', 'In Progress': 'bg-blue-200', 'Done': 'bg-green-200' };
+
+    return (
+        <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="font-semibold">{task.name}</p>
+                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-4">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[task.status]}`}>{task.status}</span>
+                        <span>{formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
+                    </div>
+                </div>
+                <div className="flex items-center">
+                    {assignee && (
+                        <span title={assignee.name} className="flex items-center h-8 w-8 justify-center bg-gray-200 rounded-full font-bold text-purple-800 text-sm">
+                            {assignee.name.split(' ').map(n => n[0]).join('')}
+                        </span>
+                    )}
+                    <button onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })} className="p-2 text-gray-500 hover:text-purple-600 ml-2">
+                        <EditIcon className="h-5 w-5" />
+                    </button>
+                    <button onClick={() => setShowComments(!showComments)} className="p-2 text-gray-500 hover:text-purple-600">
+                        <MessageSquareIcon className="h-5 w-5" />
+                    </button>
+                </div>
+            </div>
+            {showComments && (
+                <div className="mt-2 pl-6">
+                    <div className="space-y-2">
+                        {(task.comments || []).map((comment, i) => (
+                            <div key={i} className="text-sm">
+                                <span className="font-bold">{comment.author}: </span>
+                                <span>{comment.text}</span>
+                            </div>
+                        ))}
+                         <div className="flex gap-2 pt-2">
+                            <input 
+                                type="text" 
+                                placeholder="Add a comment..." 
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                className="flex-grow p-1 border rounded-md text-sm"
+                            />
+                            <button onClick={handleAddComment} className="px-3 py-1 text-sm font-semibold rounded-md bg-gray-200 hover:bg-gray-300">Post</button>
+                         </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
-```
-
----
-
-### How to Test This
-
-1.  **Go to your Firebase Console:**
-    * Find your project.
-    * Go to the **Authentication** section and enable the **Email/Password** sign-in method.
-    * Go to the **Users** tab and click "Add user". Create a new user with an email and password.
-2.  **Go to your Firestore Database:**
-    * Find the `people` collection.
-    * Find the "Adena Phillips" document (or any user you want to test with).
-    * Make sure her `email` field matches **exactly** the email of the user you just created in Firebase Authentication.
-3.  **Run the app:**
-    * You should be redirected to the new Login screen.
-    * Log in with the user you created.
-    * Go to the "Work Hub" and click "My Tasks". You should now see the tasks assigned to that user.
-    * Click the "Sign Out" button to return to the login screen.
-
----
-
-### Ready to Commit
-
-Here are the `bash` commands to commit this new feature.
-
-```bash
-git add .
-```
-```bash
-git commit -m "Feat: Implement Firebase Authentication and dynamic 'My Tasks' view"
 
