@@ -1,3 +1,4 @@
+// Forcing the 'New Task' button build
 import React, { useState, useMemo } from 'react';
 import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon, SearchIcon } from './Icons';
 
@@ -159,7 +160,7 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
     const statusColors = { 'To Do': 'bg-gray-200', 'In Progress': 'bg-blue-200', 'Done': 'bg-green-200' };
 
     return (
-        <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+        <div className="p-3 bg-gray-50 rounded-md border border-gray-20m0">
             <div className="flex items-center justify-between">
                 <div>
                     <p className="font-semibold">{task.name}</p>
