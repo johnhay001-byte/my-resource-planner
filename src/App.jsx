@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
+// ▼▼▼ We need all these auth imports ▼▼▼
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
 
@@ -14,7 +15,7 @@ import { TaskModal } from './components/TaskModal';
 import { ProjectHub } from './components/ProjectHub';
 import { FinancialsDashboard } from './components/FinancialsDashboard';
 import { Login } from './components/Login'; 
-import { LoadingSpinner } from './components/LoadingSpinner'; // Import the new spinner
+import { LoadingSpinner } from './components/LoadingSpinner';
 import './index.css';
 
 const NetworkView = () => null; 
@@ -37,16 +38,15 @@ export default function App() {
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [editingTask, setEditingTask] = useState(null);
-    const [isSaving, setIsSaving] = useState(false); // State for save operations
+    const [isSaving, setIsSaving] = useState(false); 
 
-    // --- Auth State ---
+    // --- Auth State (Missing from your old file) ---
     const [auth, setAuth] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
     const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-    // --- Firebase Auth Setup ---
+    // --- Firebase Auth Setup (Missing from your old file) ---
     useEffect(() => {
-        // ... (no change in this useEffect)
         const app = db.app;
         const authInstance = getAuth(app);
         setAuth(authInstance);
@@ -65,7 +65,6 @@ export default function App() {
 
     // --- Firestore Data Fetching ---
     useEffect(() => {
-        // ... (no change in this useEffect)
         setLoading(true);
         const unsubClients = onSnapshot(collection(db, "clients"), (snapshot) => setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
         const unsubPrograms = onSnapshot(collection(db, "programs"), (snapshot) => setPrograms(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
@@ -80,7 +79,7 @@ export default function App() {
 
     // --- handleUpdate (Reducer) ---
     const handleUpdate = async (action) => {
-        setIsSaving(true); // Set saving state to true
+        setIsSaving(true); 
         try {
             switch (action.type) {
                 case 'DELETE_NODE':
@@ -143,53 +142,118 @@ export default function App() {
             }
         } catch (error) {
             console.error("Error handling update:", error);
-            // Here we could add a toast notification for the error
         } finally {
-            // Set saving state to false, unless it's just opening a modal
             if (action.type !== 'ADD_PERSON' && action.type !== 'EDIT_PERSON' && action.type !== 'ADD_TASK' && action.type !== 'EDIT_TASK') {
                  setIsSaving(false);
             }
-            // For modal saves, we set saving to false inside the modal component's onSave
             if(action.type === 'SAVE_PERSON' || action.type === 'SAVE_TASK') {
                  setIsSaving(false);
             }
         }
     };
     
+    // --- handleSignOut (Missing from your old file) ---
     const handleSignOut = () => {
-        // ... (no change)
+        if(auth) {
+            signOut(auth).catch((error) => console.error("Sign out error", error));
+        }
     };
 
     // --- Data Memoization ---
     const projectMap = useMemo(() => {
-        // ... (no change)
+        const map = new Map();
+        projects.forEach(p => map.set(p.id, p));
+        return map;
     }, [projects]);
 
     const displayedData = useMemo(() => {
-        // ... (no change)
+        const clientList = activeFilter === 'all' ? clients : clients.filter(c => c.id === activeFilter);
+        const peopleById = new Map(people.map(p => [p.id, p]));
+        const tasksByProjectId = new Map();
+        tasks.forEach(task => {
+            if (!tasksByProjectId.has(task.projectId)) tasksByProjectId.set(task.projectId, []);
+            tasksByProjectId.get(task.projectId).push(task);
+        });
+
+        return clientList.map(client => ({
+            ...client,
+            type: 'client',
+            children: programs.filter(p => p.clientId === client.id).map(program => ({
+                ...program,
+                type: 'program',
+                children: projects.filter(p => p.programId === program.id).map(project => ({
+                    ...project,
+                    type: 'project',
+                    tasks: tasksByProjectId.get(project.id) || [],
+                    children: (project.team || []).map(personId => ({
+                        ...peopleById.get(personId),
+                        id: personId, 
+                        personId: personId,
+                        type: 'person'
+                    })).filter(p => p.name) 
+                }))
+            }))
+        }));
     }, [activeFilter, clients, programs, projects, people, tasks]);
+
 
     // --- View Renderer ---
     const renderView = () => {
-        // ... (no change to this function)
+        switch (viewMode) {
+            case 'orgChart':
+                return (
+                    <>
+                       <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                       <main className="p-8">
+                            <div className="space-y-4">
+                               {displayedData.map(client => (
+                                   <div key={client.id} className="bg-white p-6 rounded-lg shadow-md">
+                                        <Node 
+                                            node={client} 
+                                            level={0} 
+                                            onUpdate={handleUpdate} 
+                                            onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))}
+                                            onProjectSelect={setSelectedProject}
+                                        />
+                                   </div>
+                               ))}
+                               {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
+                            </div>
+                       </main>
+                    </>
+                );
+            case 'teamManagement':
+                 return <TeamManagementView people={people} tasks={tasks} onUpdate={handleUpdate} onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} />;
+            case 'workHub':
+                return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} currentUser={currentUser} />;
+            case 'network':
+                return <div className="h-[calc(100vh-120px)]"><NetworkView data={displayedData} onNodeClick={(node) => console.log(node)} /></div>;
+            case 'financials':
+                return <FinancialsDashboard people={people} projects={projects} />;
+            default:
+                return (
+                     <>
+                       <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                       <main className="p-8"><div className="space-y-4">{displayedData.map(client => (<div key={client.id} className="bg-white p-6 rounded-lg shadow-md"><Node node={client} level={0} onUpdate={() => {}} onPersonSelect={() => {}} onProjectSelect={() => {}} /></div>))}</div></main>
+                    </>
+                );
+        }
     };
     
-    // --- Auth-Based Return Logic ---
+    // --- Auth-Based Return Logic (Updated) ---
     
-    // Show loading spinner while checking auth OR fetching data
     if (isAuthLoading || loading) {
         return <LoadingSpinner />;
     }
 
-    // If NOT logged in, show Login screen
     if (!currentUser) {
         return <Login />;
     }
 
-    // If logged in, show the main application
     return (
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
             <div className="flex flex-col h-screen">
+                {/* ▼▼▼ This now correctly passes handleSignOut ▼▼▼ */}
                 <Header viewMode={viewMode} setViewMode={setViewMode} handleSignOut={handleSignOut} />
                 <div className="flex-1 overflow-y-auto">{renderView()}</div>
                  <PersonModal 
@@ -197,7 +261,7 @@ export default function App() {
                     onClose={() => setIsPersonModalOpen(false)}
                     onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
                     personData={editingPerson}
-                    isSaving={isSaving} // Pass saving state
+                    isSaving={isSaving}
                 />
                  <TaskModal 
                     isOpen={isTaskModalOpen}
@@ -205,7 +269,7 @@ export default function App() {
                     onSave={(task) => handleUpdate({ type: 'SAVE_TASK', task })}
                     taskData={editingTask}
                     allPeople={people}
-                    isSaving={isSaving} // Pass saving state
+                    isSaving={isSaving}
                 />
                 {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />}
                 
