@@ -85,6 +85,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
                     <p className="text-gray-600">A central place to view all ongoing work.</p>
+
                 </div>
                  <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
                     <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
