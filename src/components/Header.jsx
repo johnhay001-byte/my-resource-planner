@@ -4,7 +4,8 @@ import { ListTreeIcon, UsersIcon, BriefcaseIcon, Share2Icon, DollarSignIcon, Log
 export const Header = ({ viewMode, setViewMode, handleSignOut }) => (
     <div className="p-6 bg-white border-b border-gray-200 flex justify-between items-center">
         <div>
-            <h1 className="text-3xl font-bold text-gray-800">Project & Resource Visualizer</h1>
+            {/* ▼▼▼ VISIBLE CHANGE HERE ▼▼▼ */}
+            <h1 className="text-3xl font-bold text-gray-800">Project & Resource Visualizer v2</h1>
             <p className="mt-1 text-gray-600">Explore and manage your organization's resources.</p>
         </div>
         <div className="flex items-center space-x-2">
