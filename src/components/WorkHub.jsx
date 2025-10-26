@@ -54,7 +54,6 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
         });
     }, [projectsWithTasks, searchTerm, statusFilter]);
 
-    // ▼▼▼ THIS IS THE RESTORED FUNCTION BODY ▼▼▼
     const renderAllProjects = () => (
         <div className="space-y-6">
             {displayedProjects.map(project => (
@@ -63,7 +62,6 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
              {displayedProjects.length === 0 && <p className="text-center text-gray-500 py-10">No projects or tasks match your filters.</p>}
         </div>
     );
-    // ▲▲▲ END OF RESTORED FUNCTION BODY ▲▲▲
 
     const renderMyTasks = () => (
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -88,12 +86,22 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                     <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
                     <p className="text-gray-600">A central place to view all ongoing work.</p>
                 </div>
-                 <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
-                    <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
-                        <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
-                    </button>
-                    <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
-                        <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
+                {/* ▼▼▼ WRAPPER ADDED to hold toggles and new button ▼▼▼ */}
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
+                        <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                            <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
+                        </button>
+                        <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                            <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
+                        </button>
+                    </div>
+                    {/* ▼▼▼ NEW TASK BUTTON ADDED ▼▼▼ */}
+                    <button 
+                        onClick={() => onUpdate({ type: 'ADD_TASK' })}
+                        className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700"
+                    >
+                        <PlusIcon className="h-4 w-4 mr-2" /> New Task
                     </button>
                 </div>
             </div>
@@ -113,7 +121,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 <div className="flex items-center space-x-2 p-1 bg-gray-100 rounded-lg">
                     <span className="text-sm font-semibold text-gray-600 px-2">Status:</span>
                     {['All', 'To Do', 'In Progress', 'Done'].map(status => (
-                        <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
                             {status}
                         </button>
                     ))}
