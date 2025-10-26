@@ -104,9 +104,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                         type="text"
                         placeholder={hubView === 'allProjects' ? "Search projects or tasks..." : "Search my tasks..."}
                         value={searchTerm}
-                        // ▼▼▼ THIS IS THE FIX ▼▼▼
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        // ▲▲▲ WAS 'e.g...' before ▲▲▲
                         className="w-full p-2 pl-10 border rounded-md"
                     />
                 </div>
