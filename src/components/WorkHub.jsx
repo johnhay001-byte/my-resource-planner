@@ -85,16 +85,23 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
                     <p className="text-gray-600">A central place to view all ongoing work.</p>
-
                 </div>
-                 <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
-                    <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
-                        <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
-                    </button>
-                    <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
-                        <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
+                {/* ▼▼▼ HERE IS THE CHANGE ▼▼▼ */}
+                <div className="flex items-center gap-4">
+                     <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
+                        <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                            <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
+                        </button>
+                        <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                            <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
+                        </button>
+                    </div>
+                    {/* This button will open the modal from App.jsx */}
+                    <button onClick={() => onUpdate({ type: 'ADD_TASK' })} className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700">
+                        <PlusIcon className="h-4 w-4 mr-2" /> New Task
                     </button>
                 </div>
+                 {/* ▲▲▲ END OF CHANGE ▲▲▲ */}
             </div>
 
             {/* Filter and Search Controls */}
