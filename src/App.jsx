@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-// ▼▼▼ We need all these auth imports ▼▼▼
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
 
@@ -40,12 +39,12 @@ export default function App() {
     const [editingTask, setEditingTask] = useState(null);
     const [isSaving, setIsSaving] = useState(false); 
 
-    // --- Auth State (Missing from your old file) ---
+    // --- Auth State ---
     const [auth, setAuth] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
     const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-    // --- Firebase Auth Setup (Missing from your old file) ---
+    // --- Firebase Auth Setup ---
     useEffect(() => {
         const app = db.app;
         const authInstance = getAuth(app);
@@ -152,7 +151,6 @@ export default function App() {
         }
     };
     
-    // --- handleSignOut (Missing from your old file) ---
     const handleSignOut = () => {
         if(auth) {
             signOut(auth).catch((error) => console.error("Sign out error", error));
@@ -240,7 +238,7 @@ export default function App() {
         }
     };
     
-    // --- Auth-Based Return Logic (Updated) ---
+    // --- Auth-Based Return Logic ---
     
     if (isAuthLoading || loading) {
         return <LoadingSpinner />;
@@ -253,7 +251,6 @@ export default function App() {
     return (
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
             <div className="flex flex-col h-screen">
-                {/* ▼▼▼ This now correctly passes handleSignOut ▼▼▼ */}
                 <Header viewMode={viewMode} setViewMode={setViewMode} handleSignOut={handleSignOut} />
                 <div className="flex-1 overflow-y-auto">{renderView()}</div>
                  <PersonModal 
