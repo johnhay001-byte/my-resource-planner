@@ -1,9 +1,6 @@
-// Forcing a new build - v3
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
-
 import { Header } from './components/Header';
 import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
@@ -12,12 +9,9 @@ import { TeamManagementView } from './components/TeamManagementView';
 import { WorkHub } from './components/WorkHub';
 import { PersonDetailCard } from './components/PersonDetailCard';
 import { TaskModal } from './components/TaskModal';
-import { ProjectHub } from './components/ProjectHub';
-import { FinancialsDashboard } from './components/FinancialsDashboard';
-import { Login } from './components/Login'; 
-import { LoadingSpinner } from './components/LoadingSpinner';
 import './index.css';
 
+// We will bring this back in a future step
 const NetworkView = () => null; 
 
 export default function App() {
@@ -38,31 +32,7 @@ export default function App() {
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [editingTask, setEditingTask] = useState(null);
-    const [isSaving, setIsSaving] = useState(false); 
-
-    // --- Auth State ---
-    const [auth, setAuth] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null);
-    const [isAuthLoading, setIsAuthLoading] = useState(true);
-
-    // --- Firebase Auth Setup ---
-    useEffect(() => {
-        const app = db.app;
-        const authInstance = getAuth(app);
-        setAuth(authInstance);
-
-        const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-            setCurrentUser(user);
-            setIsAuthLoading(false);
-            if(user) {
-                setViewMode('orgChart'); 
-                setActiveFilter('all');
-            }
-        });
-
-        return () => unsubscribe();
-    }, []);
-
+    
     // --- Firestore Data Fetching ---
     useEffect(() => {
         setLoading(true);
@@ -79,7 +49,6 @@ export default function App() {
 
     // --- handleUpdate (Reducer) ---
     const handleUpdate = async (action) => {
-        setIsSaving(true); 
         try {
             switch (action.type) {
                 case 'DELETE_NODE':
@@ -127,7 +96,7 @@ export default function App() {
                         await setDoc(doc(db, "tasks", action.task.id), action.task, { merge: true });
                     } else {
                         await addDoc(collection(db, "tasks"), action.task);
-                    }
+S                    }
                     setIsTaskModalOpen(false);
                     setEditingTask(null);
                     break;
@@ -142,22 +111,9 @@ export default function App() {
             }
         } catch (error) {
             console.error("Error handling update:", error);
-        } finally {
-            if (action.type !== 'ADD_PERSON' && action.type !== 'EDIT_PERSON' && action.type !== 'ADD_TASK' && action.type !== 'EDIT_TASK') {
-                 setIsSaving(false);
-            }
-            if(action.type === 'SAVE_PERSON' || action.type === 'SAVE_TASK') {
-                 setIsSaving(false);
-            }
         }
     };
     
-    const handleSignOut = () => {
-        if(auth) {
-            signOut(auth).catch((error) => console.error("Sign out error", error));
-        }
-    };
-
     // --- Data Memoization ---
     const projectMap = useMemo(() => {
         const map = new Map();
@@ -224,11 +180,9 @@ export default function App() {
             case 'teamManagement':
                  return <TeamManagementView people={people} tasks={tasks} onUpdate={handleUpdate} onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} />;
             case 'workHub':
-                return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} currentUser={currentUser} />;
+                return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} />;
             case 'network':
                 return <div className="h-[calc(100vh-120px)]"><NetworkView data={displayedData} onNodeClick={(node) => console.log(node)} /></div>;
-            case 'financials':
-                return <FinancialsDashboard people={people} projects={projects} />;
             default:
                 return (
                      <>
@@ -238,28 +192,17 @@ export default function App() {
                 );
         }
     };
-    
-    // --- Auth-Based Return Logic ---
-    
-    if (isAuthLoading || loading) {
-        return <LoadingSpinner />;
-    }
-
-    if (!currentUser) {
-        return <Login />;
-    }
 
     return (
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
             <div className="flex flex-col h-screen">
-                <Header viewMode={viewMode} setViewMode={setViewMode} handleSignOut={handleSignOut} />
+                <Header viewMode={viewMode} setViewMode={setViewMode} />
                 <div className="flex-1 overflow-y-auto">{renderView()}</div>
                  <PersonModal 
                     isOpen={isPersonModalOpen}
                     onClose={() => setIsPersonModalOpen(false)}
                     onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
                     personData={editingPerson}
-                    isSaving={isSaving}
                 />
                  <TaskModal 
                     isOpen={isTaskModalOpen}
@@ -267,7 +210,6 @@ export default function App() {
                     onSave={(task) => handleUpdate({ type: 'SAVE_TASK', task })}
                     taskData={editingTask}
                     allPeople={people}
-                    isSaving={isSaving}
                 />
                 {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />}
                 
