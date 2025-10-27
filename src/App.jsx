@@ -1,4 +1,4 @@
-// Forcing a new build - v2
+// Forcing a new build - v3
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";

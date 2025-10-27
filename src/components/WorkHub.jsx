@@ -120,7 +120,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 <div className="flex items-center space-x-2 p-1 bg-gray-100 rounded-lg">
                     <span className="text-sm font-semibold text-gray-600 px-2">Status:</span>
                     {['All', 'To Do', 'In Progress', 'Done'].map(status => (
-                        <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
                             {status}
                         </button>
                     ))}
@@ -160,7 +160,7 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
     const statusColors = { 'To Do': 'bg-gray-200', 'In Progress': 'bg-blue-200', 'Done': 'bg-green-200' };
 
     return (
-        <div className="p-3 bg-gray-50 rounded-md border border-gray-20m0">
+        <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
             <div className="flex items-center justify-between">
                 <div>
                     <p className="font-semibold">{task.name}</p>
