@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
-// ▼▼▼ ADD FIREBASE AUTH IMPORTS ▼▼▼
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
 
+// Import all our components
 import { Header } from './components/Header';
 import { ClientFilter } from './components/ClientFilter';
 import { Node } from './components/Node';
@@ -12,8 +12,9 @@ import { TeamManagementView } from './components/TeamManagementView';
 import { WorkHub } from './components/WorkHub';
 import { PersonDetailCard } from './components/PersonDetailCard';
 import { TaskModal } from './components/TaskModal';
-import { ProjectHub } from './components/ProjectHub'; // Import ProjectHub
-import { Login } from './components/Login'; // Import the new Login component
+import { ProjectHub } from './components/ProjectHub';
+import { Login } from './components/Login';
+import { Notification } from './components/Notification'; // Import the new Notification component
 import './index.css';
 
 // We will bring this back in a future step
@@ -36,49 +37,46 @@ export default function App() {
     const [loading, setLoading] = useState(true);
 
     // --- UI State ---
-    const [activeFilter, setActiveFilter] =useState('all');
+    const [activeFilter, setActiveFilter] = useState('all');
     const [viewMode, setViewMode] = useState('orgChart');
-    const [selectedProject, setSelectedProject] = useState(null); // For ProjectHub
+    const [selectedProject, setSelectedProject] = useState(null); 
     const [detailedPerson, setDetailedPerson] = useState(null);
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [editingTask, setEditingTask] = useState(null);
+    
+    // --- ▼▼▼ NEW NOTIFICATION STATE ▼▼▼ ---
+    const [notification, setNotification] = useState({ message: '', type: '' });
 
-    // --- ▼▼▼ NEW AUTH STATE ▼▼▼ ---
+    // --- Auth State ---
     const [auth, setAuth] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null); // Holds the logged-in user object
-    const [isAuthLoading, setIsAuthLoading] = useState(true); // Tracks auth check on page load
+    const [currentUser, setCurrentUser] = useState(null); 
+    const [isAuthLoading, setIsAuthLoading] = useState(true); 
 
-    // --- Firebase Auth Setup ---
+    // --- Auth Setup ---
     useEffect(() => {
-        const app = db.app; // Get the app instance from the db
+        const app = db.app;
         const authInstance = getAuth(app);
-        setAuth(authInstance); // Store auth instance
+        setAuth(authInstance); 
 
-        // Listen for changes in authentication state (login/logout)
         const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-            setCurrentUser(user); // Set the current user (or null if logged out)
-            setIsAuthLoading(false); // Auth check is complete
+            setCurrentUser(user); 
+            setIsAuthLoading(false); 
             if(user) {
-                // If user logs in, reset view to default
                 setViewMode('orgChart'); 
                 setActiveFilter('all');
             }
         });
-
-        // Cleanup subscription on unmount
         return () => unsubscribe();
     }, []);
 
-    // --- Firestore Data Fetching ---
+    // --- Data Fetching ---
     useEffect(() => {
-        // This effect now only runs if a user is logged in
         if (!currentUser) {
             setLoading(false);
-            return; // Don't fetch data if not logged in
+            return; 
         }
-
         setLoading(true);
         const unsubClients = onSnapshot(collection(db, "clients"), (snapshot) => setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
         const unsubPrograms = onSnapshot(collection(db, "programs"), (snapshot) => setPrograms(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
@@ -86,14 +84,24 @@ export default function App() {
         const unsubPeople = onSnapshot(collection(db, "people"), (snapshot) => setPeople(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
         const unsubTasks = onSnapshot(collection(db, "tasks"), (snapshot) => {
             setTasks(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-            setLoading(false); // Data loading is complete
+            setLoading(false); 
         });
-        // Cleanup function
         return () => { unsubClients(); unsubPrograms(); unsubProjects(); unsubPeople(); unsubTasks(); };
-    }, [currentUser]); // Re-run this effect when the user logs in or out
+    }, [currentUser]);
+
+    // --- ▼▼▼ NEW NOTIFICATION TIMER ▼▼▼ ---
+    useEffect(() => {
+        if (notification.message) {
+            // Set a timer to hide the notification after 3 seconds
+            const timer = setTimeout(() => {
+                setNotification({ message: '', type: '' });
+            }, 3000);
+            // Clear the timer if the component unmounts
+            return () => clearTimeout(timer);
+        }
+    }, [notification]);
 
     // --- handleUpdate (Reducer) ---
-    // (This function is the same as the one from our last successful fix)
     const handleUpdate = async (action) => {
         try {
             switch (action.type) {
@@ -101,6 +109,7 @@ export default function App() {
                     const collectionName = action.nodeType === 'client' ? 'clients' : action.nodeType === 'program' ? 'programs' : 'projects';
                     if (action.nodeType !== 'person') {
                         await deleteDoc(doc(db, collectionName, action.id));
+                        setNotification({ message: `${action.nodeType} deleted.`, type: 'success' }); // Add notification
                     }
                     break;
                 case 'ADD_PERSON':
@@ -120,15 +129,18 @@ export default function App() {
                     }
                     setIsPersonModalOpen(false);
                     setEditingPerson(null); 
+                    setNotification({ message: 'Person saved successfully!', type: 'success' }); // Add notification
                     break;
                 case 'DELETE_PERSON':
                      if (action.personId) {
                         await deleteDoc(doc(db, "people", action.personId));
+                        setNotification({ message: 'Person deleted.', type: 'success' }); // Add notification
                      }
                      break;
                 case 'ADD_TASK':
                     if (action.task) { 
                         await addDoc(collection(db, "tasks"), action.task);
+                        // This case is from ProjectHub, let's not show a toast for this one
                     } else {
                         setEditingTask(null); 
                         setIsTaskModalOpen(true);
@@ -144,18 +156,20 @@ export default function App() {
                          await setDoc(taskRef, action.task, { merge: true }); 
                     } else { 
                         if (!action.task.projectId) {
-                            alert("Please select a project for the new task."); // Basic validation
+                            setNotification({ message: 'Please select a project for the new task.', type: 'error' }); // Show error
                             return; 
                         }
                         await addDoc(collection(db, "tasks"), action.task);
                     }
                     setIsTaskModalOpen(false);
                     setEditingTask(null); 
+                    setNotification({ message: 'Task saved successfully!', type: 'success' }); // Add notification
                     break;
                  case 'UPDATE_TASK_ASSIGNEE': 
                     if (action.taskId) {
                         const taskRef = doc(db, 'tasks', action.taskId);
                         await updateDoc(taskRef, { assigneeId: action.assigneeId || null });
+                        // No notification for this to avoid clutter
                     }
                     break;
                 case 'ADD_COMMENT':
@@ -171,11 +185,11 @@ export default function App() {
             }
         } catch (error) {
             console.error("Error handling update:", error);
-            alert(`An error occurred: ${error.message}`); 
+            setNotification({ message: `An error occurred: ${error.message}`, type: 'error' }); // Show error notification
         }
     };
 
-    // --- ▼▼▼ NEW SIGN OUT FUNCTION ▼▼▼ ---
+    // --- Sign Out Function ---
     const handleSignOut = () => {
         if(auth) {
             signOut(auth).catch((error) => console.error("Sign out error", error));
@@ -183,7 +197,7 @@ export default function App() {
     };
     
     // --- Data Memoization ---
-    // (No changes to projectMap or displayedData logic)
+    // (No changes)
     const projectMap = useMemo(() => {
         const map = new Map();
         projects.forEach(p => map.set(p.id, p));
@@ -221,6 +235,7 @@ export default function App() {
 
 
     // --- View Renderer ---
+    // (No changes)
     const renderView = () => {
         switch (viewMode) {
             case 'orgChart':
@@ -248,11 +263,10 @@ export default function App() {
             case 'teamManagement':
                  return <TeamManagementView people={people} tasks={tasks} onUpdate={handleUpdate} onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} />;
             case 'workHub':
-                // ▼▼▼ Pass currentUser to WorkHub ▼▼▼
                 return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} currentUser={currentUser} />; 
             case 'network':
                 return <div className="h-[calc(100vh-120px)]"><NetworkView data={displayedData} onNodeClick={(node) => console.log('Network node clicked:', node)} /></div>; 
-            default: // Fallback to orgChart
+            default: 
                 return (
                      <>
                        <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
@@ -262,24 +276,28 @@ export default function App() {
         }
     };
 
-    // --- ▼▼▼ NEW TOP-LEVEL RENDER LOGIC ▼▼▼ ---
+    // --- Top-Level Render Logic ---
 
-    // 1. Show a full-page spinner while checking auth status
+    // 1. Show spinner while checking auth
     if (isAuthLoading) {
          return <FullPageSpinner />;
     }
 
-    // 2. If auth check is done and NO user is logged in, show the Login screen
+    // 2. Show Login screen if not authenticated
     if (!currentUser) {
         return <Login />;
     }
 
-    // 3. If user IS logged in, show the main application
-    // (Show loading spinner while data is being fetched)
+    // 3. Show main app if authenticated
     return (
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
+            {/* ▼▼▼ RENDER THE NOTIFICATION COMPONENT ▼▼▼ */}
+            <Notification 
+                message={notification.message} 
+                type={notification.type} 
+                onClose={() => setNotification({ message: '', type: '' })} 
+            />
             <div className="flex flex-col h-screen">
-                {/* Pass the new handleSignOut function to the Header */}
                 <Header viewMode={viewMode} setViewMode={setViewMode} handleSignOut={handleSignOut} /> 
                 <div className="flex-1 overflow-y-auto">
                     {loading ? <div className="p-8 text-center">Loading data...</div> : renderView()}
@@ -296,7 +314,7 @@ export default function App() {
                     onSave={(task) => handleUpdate({ type: 'SAVE_TASK', task })}
                     taskData={editingTask}
                     allPeople={people}
-                    projects={projects} // Pass projects for the dropdown
+                    projects={projects} 
                 />
                 {detailedPerson && <PersonDetailCard person={detailedPerson} onClose={() => setDetailedPerson(null)} projectMap={projectMap} tasks={tasks} />}
                 
