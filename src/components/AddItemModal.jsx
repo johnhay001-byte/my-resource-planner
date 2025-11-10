@@ -5,17 +5,21 @@ import { SpinnerIcon } from './Icons';
 export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, isSaving }) => {
     const [itemType, setItemType] = useState('project'); 
     const [name, setName] = useState('');
+    const [brief, setBrief] = useState(''); // New state for the brief
     const [selectedClientId, setSelectedClientId] = useState('');
     const [selectedProgramId, setSelectedProgramId] = useState('');
-    const [selectedProjectId, setSelectedProjectId] = useState(''); // New state for task parent
+    const [selectedProjectId, setSelectedProjectId] = useState(''); 
     const [errorMessage, setErrorMessage] = useState('');
 
     // Reset all parent IDs when itemType changes
     useEffect(() => {
+        setName('');
+        setBrief('');
         setSelectedClientId('');
         setSelectedProgramId('');
         setSelectedProjectId('');
-    }, [itemType]);
+        setErrorMessage('');
+    }, [itemType, isOpen]); // Also reset on open
 
     if (!isOpen) return null;
 
@@ -43,31 +47,39 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                 setErrorMessage('A parent program must be selected.');
                 return;
             }
+            if (!brief.trim()) {
+                setErrorMessage('A brief is required for new project requests.');
+                return;
+            }
             actionType = 'ADD_PROJECT';
             itemData.programId = selectedProgramId;
+            itemData.brief = brief; // Add the brief
             itemData.team = []; 
-        } else if (itemType === 'task') { // ▼▼▼ ADD THIS BLOCK ▼▼▼
+            itemData.status = 'Pending'; // Set default status
+        } else if (itemType === 'task') { 
             if (!selectedProjectId) {
                 setErrorMessage('A parent project must be selected.');
                 return;
             }
-            actionType = 'ADD_TASK';
+            actionType = 'ADD_TASK_FROM_GLOBAL'; // Use the correct action type
             itemData.projectId = selectedProjectId;
             itemData.status = 'To Do';
             itemData.startDate = new Date().toISOString().split('T')[0];
             itemData.endDate = new Date().toISOString().split('T')[0];
             itemData.comments = [];
-        } // ▲▲▲ END ADDED BLOCK ▲▲▲
+        } 
 
         onSave({ type: actionType, item: itemData });
-        resetForm();
+        // Don't reset form here, let useEffect handle it on next open
     };
 
     const resetForm = () => {
+        // This function is not strictly needed if useEffect handles reset
         setName('');
+        setBrief('');
         setSelectedClientId('');
         setSelectedProgramId('');
-        setSelectedProjectId(''); // Reset project ID
+        setSelectedProjectId(''); 
         setErrorMessage('');
     };
 
@@ -110,10 +122,18 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                         <option value="">Select Parent Program...</option>
                         {availablePrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
+                    {/* ▼▼▼ ADD BRIEF TEXTAREA ▼▼▼ */}
+                    <textarea
+                        value={brief}
+                        onChange={(e) => setBrief(e.target.value)}
+                        placeholder="Project Brief / Intake Request..."
+                        className="w-full p-2 border rounded-md"
+                        rows="4"
+                    ></textarea>
                 </>
             );
         }
-        if (itemType === 'task') { // ▼▼▼ ADD THIS BLOCK ▼▼▼
+        if (itemType === 'task') { 
             const availablePrograms = selectedClientId 
                 ? programs.filter(p => p.clientId === selectedClientId) 
                 : programs;
@@ -157,7 +177,7 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                     </select>
                 </>
             );
-        } // ▲▲▲ END ADDED BLOCK ▲▲▲
+        } 
         return null;
     };
 
@@ -171,8 +191,8 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                         onChange={(e) => setItemType(e.target.value)} 
                         className="w-full p-2 border rounded-md bg-gray-50"
                     >
-                        <option value="task">Task</option> {/* Added Task */}
-                        <option value="project">Project</option>
+                        <option value="project">Project Request</option> {/* Renamed */}
+                        <option value="task">Task</option>
                         <option value="program">Program</option>
                         <option value="client">Client</option>
                     </select>
@@ -181,7 +201,7 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                         type="text" 
                         value={name} 
                         onChange={(e) => setName(e.target.value)} 
-                        placeholder={`New ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Name`} 
+                        placeholder={itemType === 'project' ? 'Project Request Name' : `New ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Name`}
                         className="w-full p-2 border rounded-md"
                     />
                     
@@ -195,7 +215,11 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                 </div>
                 <div className="mt-8 flex justify-end gap-4">
                     <button 
-                        onClick={onClose} 
+                        onClick={() => {
+                            onClose();
+                            // We need to reset the form on close as well
+                            setTimeout(resetForm, 200); // Delay to allow animation
+                        }} 
                         disabled={isSaving} 
                         className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50"
                     >
