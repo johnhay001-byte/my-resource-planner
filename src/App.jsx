@@ -113,7 +113,13 @@ export default function App() {
                     setNotification({ message: 'Project added!', type: 'success' });
                     setIsAddItemModalOpen(false);
                     break;
-                // ▲▲▲ END NEW ACTIONS ▲▲▲
+                // ▼▼▼ ADD THIS BLOCK ▼▼▼
+                case 'ADD_TASK_FROM_GLOBAL': // Renamed to avoid conflict with ProjectHub
+                    await addDoc(collection(db, "tasks"), action.item);
+                    setNotification({ message: 'Task added!', type: 'success' });
+                    setIsAddItemModalOpen(false);
+                    break;
+                // ▲▲▲ END ADDED BLOCK ▲▲▲
 
                 case 'DELETE_NODE':
                     const collectionName = action.nodeType === 'client' ? 'clients' : action.nodeType === 'program' ? 'programs' : 'projects';
@@ -191,7 +197,8 @@ export default function App() {
              if (!['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM'].includes(action.type)) {
                 setIsSaving(false);
             }
-            if (['SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT'].includes(action.type)) {
+            // Add new save types
+            if (['SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 'ADD_TASK_FROM_GLOBAL'].includes(action.type)) {
                 setIsSaving(false);
             }
         }
@@ -342,6 +349,7 @@ export default function App() {
                     onSave={handleUpdate}
                     clients={clients}
                     programs={programs}
+                    projects={projects} // Pass projects
                     isSaving={isSaving}
                 />
                 

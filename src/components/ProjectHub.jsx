@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, MessageSquareIcon } from './Icons';
+// ▼▼▼ Import new icons ▼▼▼
+import { PlusIcon, MessageSquareIcon, SparklesIcon, SpinnerIcon } from './Icons';
 import * as d3 from 'd3';
 
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 // --- Board View Component (Kanban) ---
+// ... (This component is unchanged)
 const BoardView = ({ tasks, allPeople, onUpdate }) => {
     const [columns, setColumns] = useState({
         'To Do': [],
@@ -18,7 +20,6 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
             if (newColumns[task.status]) {
                 newColumns[task.status].push(task);
             } else {
-                // Fallback for any tasks with an unexpected status
                 newColumns['To Do'].push(task);
             }
         });
@@ -88,6 +89,7 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
 
 
 // --- Gantt View Component ---
+// ... (This component is unchanged)
 const GanttView = ({ tasks }) => {
     const svgRef = React.useRef();
     const tooltipRef = React.useRef();
@@ -178,14 +180,71 @@ const GanttView = ({ tasks }) => {
 export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
     const [view, setView] = useState('list');
     const [tasks, setTasks] = useState([]);
+    
+    // ▼▼▼ NEW AI FEATURE STATE ▼▼▼
+    const [aiInsights, setAiInsights] = useState('');
+    const [isEnriching, setIsEnriching] = useState(false);
+    // ▲▲▲ END NEW AI FEATURE STATE ▲▲▲
 
     useEffect(() => {
-        // This makes sure the tasks in the hub are always up-to-date with the main app state
         const projectTasks = project.tasks || [];
         setTasks(projectTasks);
-    }, [project.tasks]);
+        // Reset AI insights when project changes
+        setAiInsights(''); 
+    }, [project]);
 
     if (!project) return null;
+
+    // ▼▼▼ NEW AI FEATURE FUNCTION ▼▼▼
+    const handleEnrichBrief = async () => {
+        if (!project.brief) {
+            setAiInsights('<p class="text-red-500">Project brief is empty. Cannot enrich.</p>');
+            return;
+        }
+        
+        setIsEnriching(true);
+        setAiInsights('');
+
+        const systemPrompt = "You are a senior creative agency producer. Analyze the following project brief and provide 3 key risks, 3 creative opportunities, and a list of recommended team roles (e.g., Creative Director, Senior Copywriter). Format your response in clean, semantic HTML using <h4> for titles and <ul>/<li> for lists.";
+        
+        const userQuery = `Project Brief: "${project.brief}"`;
+        const apiKey = ""; // API key is handled by the environment
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        const payload = {
+            contents: [{ parts: [{ text: userQuery }] }],
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            },
+        };
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (text) {
+                setAiInsights(text);
+            } else {
+                setAiInsights('<p class="text-red-500">Failed to generate insights. No content returned.</p>');
+            }
+        } catch (error) {
+            console.error("AI enrichment failed:", error);
+            setAiInsights(`<p class="text-red-500">Error: ${error.message}</p>`);
+        } finally {
+            setIsEnriching(false);
+        }
+    };
+    // ▲▲▲ END NEW AI FEATURE FUNCTION ▲▲▲
 
     const renderCurrentView = () => {
         switch (view) {
@@ -206,8 +265,45 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
                 <div className="flex-shrink-0">
                     <h2 className="text-3xl font-bold mb-2">{project.name}</h2>
-                    <p className="text-gray-600 mb-4">{project.brief || 'No brief available for this project.'}</p>
-                    <div className="flex border-b mb-4">
+                    
+                    {/* ▼▼▼ PROJECT BRIEF & AI BUTTON ▼▼▼ */}
+                    <div className="relative p-4 bg-gray-50 rounded-lg border">
+                        <p className="text-gray-600 mb-0">{project.brief || 'No brief available for this project.'}</p>
+                        <button 
+                            onClick={handleEnrichBrief} 
+                            disabled={isEnriching}
+                            className="absolute top-3 right-3 px-3 py-1.5 text-xs font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                        >
+                            {isEnriching ? (
+                                <SpinnerIcon className="h-4 w-4 mr-2" />
+                            ) : (
+                                <SparklesIcon className="h-4 w-4 mr-2" />
+                            )}
+                            {isEnriching ? 'Analyzing...' : 'Enrich Brief (AI)'}
+                        </button>
+                    </div>
+                    {/* ▲▲▲ END PROJECT BRIEF & AI BUTTON ▲▲▲ */}
+
+                    {/* ▼▼▼ AI INSIGHTS SECTION ▼▼▼ */}
+                    {(isEnriching || aiInsights) && (
+                        <div className="mt-4 p-4 border rounded-lg bg-white">
+                            <h3 className="text-lg font-semibold mb-2 text-gray-800">AI Insights</h3>
+                            {isEnriching && (
+                                <div className="flex items-center text-gray-500">
+                                    <SpinnerIcon className="h-5 w-5 mr-2" />
+                                    <span>Generating insights...</span>
+                                </div>
+                            )}
+                            {/* Render the HTML response from the AI */}
+                            <div 
+                                className="prose prose-sm max-w-none text-gray-700" 
+                                dangerouslySetInnerHTML={{ __html: aiInsights }} 
+                            />
+                        </div>
+                    )}
+                    {/* ▲▲▲ END AI INSIGHTS SECTION ▲▲▲ */}
+
+                    <div className="flex border-b mt-4 mb-4">
                         <button onClick={() => setView('list')} className={`px-4 py-2 font-semibold ${view === 'list' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>List</button>
                         <button onClick={() => setView('board')} className={`px-4 py-2 font-semibold ${view === 'board' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Board</button>
                         <button onClick={() => setView('gantt')} className={`px-4 py-2 font-semibold ${view === 'gantt' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Gantt</button>
@@ -223,8 +319,8 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
 };
 
 // --- List View Components (already existed) ---
+// ... (This component is unchanged)
 const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
-    // ... (This component remains unchanged)
     const [newTaskName, setNewTaskName] = useState('');
 
     const handleAddTask = () => {
@@ -267,8 +363,9 @@ const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
     );
 };
 
+// --- Task Item Component (already existed) ---
+// ... (This component is unchanged)
 const TaskItem = ({ task, allPeople, onUpdate }) => {
-    // ... (This component remains unchanged)
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
     const assignee = allPeople.find(p => p.id === task.assigneeId);
@@ -320,4 +417,3 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
         </div>
     );
 };
-

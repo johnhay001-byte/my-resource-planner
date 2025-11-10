@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SpinnerIcon } from './Icons';
 
-export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSaving }) => {
-    const [itemType, setItemType] = useState('project'); // Default to 'project'
+// Add 'projects' to the props
+export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, isSaving }) => {
+    const [itemType, setItemType] = useState('project'); 
     const [name, setName] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
     const [selectedProgramId, setSelectedProgramId] = useState('');
+    const [selectedProjectId, setSelectedProjectId] = useState(''); // New state for task parent
     const [errorMessage, setErrorMessage] = useState('');
+
+    // Reset all parent IDs when itemType changes
+    useEffect(() => {
+        setSelectedClientId('');
+        setSelectedProgramId('');
+        setSelectedProjectId('');
+    }, [itemType]);
 
     if (!isOpen) return null;
 
@@ -36,8 +45,19 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSav
             }
             actionType = 'ADD_PROJECT';
             itemData.programId = selectedProgramId;
-            itemData.team = []; // Default to an empty team
-        }
+            itemData.team = []; 
+        } else if (itemType === 'task') { // ▼▼▼ ADD THIS BLOCK ▼▼▼
+            if (!selectedProjectId) {
+                setErrorMessage('A parent project must be selected.');
+                return;
+            }
+            actionType = 'ADD_TASK';
+            itemData.projectId = selectedProjectId;
+            itemData.status = 'To Do';
+            itemData.startDate = new Date().toISOString().split('T')[0];
+            itemData.endDate = new Date().toISOString().split('T')[0];
+            itemData.comments = [];
+        } // ▲▲▲ END ADDED BLOCK ▲▲▲
 
         onSave({ type: actionType, item: itemData });
         resetForm();
@@ -47,8 +67,8 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSav
         setName('');
         setSelectedClientId('');
         setSelectedProgramId('');
+        setSelectedProjectId(''); // Reset project ID
         setErrorMessage('');
-        // We don't reset itemType, as user might want to add multiple of the same type
     };
 
     const renderParentDropdown = () => {
@@ -93,6 +113,51 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSav
                 </>
             );
         }
+        if (itemType === 'task') { // ▼▼▼ ADD THIS BLOCK ▼▼▼
+            const availablePrograms = selectedClientId 
+                ? programs.filter(p => p.clientId === selectedClientId) 
+                : programs;
+            
+            const availableProjects = selectedProgramId
+                ? projects.filter(p => p.programId === selectedProgramId)
+                : projects;
+            
+            return (
+                <>
+                    <select 
+                        value={selectedClientId} 
+                        onChange={(e) => {
+                            setSelectedClientId(e.target.value);
+                            setSelectedProgramId('');
+                            setSelectedProjectId('');
+                        }}
+                        className="w-full p-2 border rounded-md bg-gray-50"
+                    >
+                        <option value="">Filter by Client (Optional)...</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <select 
+                        value={selectedProgramId} 
+                        onChange={(e) => {
+                            setSelectedProgramId(e.target.value);
+                            setSelectedProjectId('');
+                        }}
+                        className="w-full p-2 border rounded-md bg-gray-50"
+                    >
+                        <option value="">Filter by Program (Optional)...</option>
+                        {availablePrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <select 
+                        value={selectedProjectId} 
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="w-full p-2 border rounded-md bg-gray-50"
+                    >
+                        <option value="">Select Parent Project...</option>
+                        {availableProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                </>
+            );
+        } // ▲▲▲ END ADDED BLOCK ▲▲▲
         return null;
     };
 
@@ -106,6 +171,7 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSav
                         onChange={(e) => setItemType(e.target.value)} 
                         className="w-full p-2 border rounded-md bg-gray-50"
                     >
+                        <option value="task">Task</option> {/* Added Task */}
                         <option value="project">Project</option>
                         <option value="program">Program</option>
                         <option value="client">Client</option>
