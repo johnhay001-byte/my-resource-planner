@@ -14,11 +14,20 @@ const addDays = (date, days) => {
 };
 
 // --- Main Timeline Component ---
-export const ResourceTimeline = ({ tasks, allPeople }) => {
+// ▼▼▼ ADD onUpdate PROP ▼▼▼
+export const ResourceTimeline = ({ tasks, allPeople, onUpdate }) => {
 
     const { projectTeam, minDate, maxDate, totalDuration, dateArray } = useMemo(() => {
         if (!tasks || tasks.length === 0) {
-            return { projectTeam: [], minDate: new Date(), maxDate: new Date(), totalDuration: 1, dateArray: [] };
+            const today = new Date();
+            const weekAgo = addDays(today, -7);
+            const inTwoWeeks = addDays(today, 14);
+            const totalDuration = diffInDays(weekAgo, inTwoWeeks) + 1;
+            const dateArray = [];
+             for (let i = 0; i < totalDuration; i++) {
+                dateArray.push(addDays(weekAgo, i));
+            }
+            return { projectTeam: [], minDate: weekAgo, maxDate: inTwoWeeks, totalDuration, dateArray };
         }
 
         // 1. Get all unique people assigned to these tasks
@@ -84,12 +93,17 @@ export const ResourceTimeline = ({ tasks, allPeople }) => {
                                         const left = diffInDays(minDate, taskStart) * 40; // 40px per day
                                         const width = (diffInDays(taskStart, taskEnd) + 1) * 40 - 4; // -4 for padding
 
+                                        // Ensure task width is at least 0
+                                        if (width < 0) return null;
+
                                         return (
                                             <div
                                                 key={task.id}
-                                                className="absolute top-2 h-8 bg-purple-600 text-white rounded shadow-sm flex items-center px-2 cursor-pointer"
+                                                // ▼▼▼ ADD onClick AND hover effect ▼▼▼
+                                                className="absolute top-2 h-8 bg-purple-600 text-white rounded shadow-sm flex items-center px-2 cursor-pointer hover:bg-purple-800 transition-colors"
                                                 style={{ left: `${left}px`, width: `${width}px` }}
                                                 title={`${task.name} (${taskStart.toLocaleDateString()} - ${taskEnd.toLocaleDateString()})`}
+                                                onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })}
                                             >
                                                 <p className="text-xs font-semibold whitespace-nowrap overflow-hidden overflow-ellipsis">{task.name}</p>
                                             </div>

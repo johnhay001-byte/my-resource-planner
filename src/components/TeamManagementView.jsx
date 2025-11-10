@@ -1,16 +1,13 @@
 import React, { useState, useMemo } from 'react';
-// ▼▼▼ Import new timeline and icons ▼▼▼
 import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon, UsersIcon, SearchIcon, ListTreeIcon, BriefcaseIcon } from './Icons';
 import { GlobalResourceView } from './GlobalResourceView';
 
 const formatCurrency = (value) => {
-    // ... (function unchanged)
     if (typeof value !== 'number') return '$0';
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value);
 };
 
 const getWeekRange = () => {
-    // ... (function unchanged)
     const now = new Date();
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))); 
     const endOfWeek = new Date(now.setDate(startOfWeek.getDate() + 6));
@@ -23,7 +20,6 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
     const [searchTerm, setSearchTerm] = useState('');
 
     const peopleWithUtilization = useMemo(() => {
-        // ... (function unchanged)
         const { start, end } = getWeekRange();
         return (people || []).map(person => {
             const weeklyTasks = (tasks || []).filter(t => {
@@ -36,7 +32,6 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
     }, [people, tasks]);
 
     const sortedPeople = useMemo(() => {
-        // ... (logic unchanged)
         let sortableItems = [...peopleWithUtilization];
         if (searchTerm) {
             sortableItems = sortableItems.filter(person =>
@@ -57,7 +52,6 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
     }, [peopleWithUtilization, sortConfig, searchTerm]);
 
     const requestSort = (key) => {
-        // ... (function unchanged)
         let direction = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
             direction = 'descending';
@@ -67,7 +61,6 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
     
     const getTeam = (person) => (person.tags?.find(t => t.type === 'Team')?.value || 'N/A');
 
-    // ▼▼▼ RENDER FOR LIST VIEW ▼▼▼
     const renderListView = () => (
         <div className="bg-white shadow-md rounded-lg overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
@@ -109,12 +102,11 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800 flex items-center"><UsersIcon className="h-7 w-7 mr-3 text-purple-600" /> Manage Team</h2>
                 
-                {/* ▼▼▼ VIEW TOGGLE ▼▼▼ */}
                 <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
-                    <button onClick={() => setView('list')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'list' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                    <button onClick={() => setView('list')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'list' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
                         <ListTreeIcon className="h-5 w-5 mr-2" /> List View
                     </button>
-                    <button onClick={() => setView('timeline')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'timeline' ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                    <button onClick={() => setView('timeline')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'timeline' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
                         <BriefcaseIcon className="h-5 w-5 mr-2" /> Timeline View
                     </button>
                 </div>
@@ -124,7 +116,6 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
                 </button>
             </div>
 
-            {/* ▼▼▼ CONDITIONAL SEARCH BAR (Only for List View) ▼▼▼ */}
             {view === 'list' && (
                 <div className="mb-6">
                     <div className="relative w-full md:w-1/3">
@@ -140,8 +131,8 @@ export const TeamManagementView = ({ people, tasks, onUpdate, onPersonSelect }) 
                 </div>
             )}
             
-            {/* ▼▼▼ VIEW RENDERER ▼▼▼ */}
-            {view === 'list' ? renderListView() : <GlobalResourceView allPeople={people} allTasks={tasks} />}
+            {/* ▼▼▼ PASS onUpdate TO THE TIMELINE ▼▼▼ */}
+            {view === 'list' ? renderListView() : <GlobalResourceView allPeople={people} allTasks={tasks} onUpdate={onUpdate} />}
 
         </div>
     );

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// ▼▼▼ Import UsersIcon and new ResourceTimeline component ▼▼▼
 import { PlusIcon, MessageSquareIcon, SparklesIcon, SpinnerIcon, UsersIcon } from './Icons';
 import { ResourceTimeline } from './ResourceTimeline'; 
 import * as d3 from 'd3';
@@ -7,7 +6,6 @@ import * as d3 from 'd3';
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 // --- Board View Component (Kanban) ---
-// ... (This component is unchanged)
 const BoardView = ({ tasks, allPeople, onUpdate }) => {
     const [columns, setColumns] = useState({
         'To Do': [],
@@ -90,7 +88,6 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
 
 
 // --- Gantt View Component ---
-// ... (This component is unchanged)
 const GanttView = ({ tasks }) => {
     const svgRef = React.useRef();
     const tooltipRef = React.useRef();
@@ -179,10 +176,9 @@ const GanttView = ({ tasks }) => {
 
 // --- Main Project Hub Component ---
 export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
-    const [view, setView] = useState('list');
+    const [view, setView] =useState('list');
     const [tasks, setTasks] = useState([]);
     
-    // ... (AI feature state remains unchanged)
     const [aiInsights, setAiInsights] = useState('');
     const [isEnriching, setIsEnriching] = useState(false);
 
@@ -194,7 +190,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
 
     if (!project) return null;
 
-    // ... (AI feature function remains unchanged)
     const handleEnrichBrief = async () => {
         if (!project.brief) {
             setAiInsights('<p class="text-red-500">Project brief is empty. Cannot enrich.</p>');
@@ -252,10 +247,9 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                 return <BoardView tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />;
             case 'gantt':
                 return <GanttView tasks={tasks} />;
-            // ▼▼▼ ADD NEW CASE FOR RESOURCES ▼▼▼
             case 'resources':
-                return <ResourceTimeline tasks={tasks} allPeople={allPeople} />;
-            // ▲▲▲ END NEW CASE ▲▲▲
+                // ▼▼▼ PASS onUpdate TO THE TIMELINE ▼▼▼
+                return <ResourceTimeline tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />;
             default:
                 return null;
         }
@@ -268,7 +262,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                 <div className="flex-shrink-0">
                     <h2 className="text-3xl font-bold mb-2">{project.name}</h2>
                     
-                    {/* ... (Project brief & AI button remains unchanged) ... */}
                     <div className="relative p-4 bg-gray-50 rounded-lg border">
                         <p className="text-gray-600 mb-0">{project.brief || 'No brief available for this project.'}</p>
                         <button 
@@ -285,7 +278,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                         </button>
                     </div>
 
-                    {/* ... (AI insights section remains unchanged) ... */}
                     {(isEnriching || aiInsights) && (
                         <div className="mt-4 p-4 border rounded-lg bg-white">
                             <h3 className="text-lg font-semibold mb-2 text-gray-800">AI Insights</h3>
@@ -302,7 +294,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                         </div>
                     )}
 
-                    {/* ▼▼▼ ADD NEW 'RESOURCES' TAB ▼▼▼ */}
                     <div className="flex border-b mt-4 mb-4">
                         <button onClick={() => setView('list')} className={`px-4 py-2 font-semibold ${view === 'list' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>List</button>
                         <button onClick={() => setView('board')} className={`px-4 py-2 font-semibold ${view === 'board' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Board</button>
@@ -312,7 +303,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                             Resources
                         </button>
                     </div>
-                    {/* ▲▲▲ END NEW TAB ▲▲▲ */}
                 </div>
 
                 <div className="flex-grow overflow-y-auto -mx-8 px-8">
@@ -324,7 +314,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
 };
 
 // --- List View Components (already existed) ---
-// ... (This component is unchanged)
 const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
     const [newTaskName, setNewTaskName] = useState('');
 
@@ -369,7 +358,6 @@ const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
 };
 
 // --- Task Item Component (already existed) ---
-// ... (This component is unchanged)
 const TaskItem = ({ task, allPeople, onUpdate }) => {
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
@@ -392,6 +380,10 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                         <span>Dates: {formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
                     </div>
                 </div>
+                {/* ▼▼▼ ADD onClick TO OPEN EDIT MODAL ▼▼▼ */}
+                <button onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })} className="p-2 text-gray-500 hover:text-purple-600">
+                    <EditIcon className="h-5 w-5" />
+                </button>
                 <button onClick={() => setShowComments(!showComments)} className="p-2 text-gray-500 hover:text-purple-600">
                     <MessageSquareIcon className="h-5 w-5" />
                 </button>
