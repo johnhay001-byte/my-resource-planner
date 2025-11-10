@@ -1,9 +1,9 @@
+// Forcing a new build - v4 - AddItem button fix
 import React from 'react';
-// ▼▼▼ Import ALL necessary icons ▼▼▼
-import { ListTreeIcon, UsersIcon, BriefcaseIcon, Share2Icon, DollarSignIcon, LogOutIcon } from './Icons'; 
+// ▼▼▼ Import PlusIcon ▼▼▼
+import { ListTreeIcon, UsersIcon, BriefcaseIcon, Share2Icon, DollarSignIcon, LogOutIcon, PlusIcon } from './Icons'; 
 
-// ▼▼▼ Add handleSignOut as a prop ▼▼▼
-export const Header = ({ viewMode, setViewMode, handleSignOut }) => (
+export const Header = ({ viewMode, setViewMode, handleSignOut, onUpdate }) => ( // Add onUpdate prop
     <div className="p-6 bg-white border-b border-gray-200 flex justify-between items-center">
         <div>
             <h1 className="text-3xl font-bold text-gray-800">Project & Resource Visualizer</h1>
@@ -21,16 +21,23 @@ export const Header = ({ viewMode, setViewMode, handleSignOut }) => (
                  <button onClick={() => setViewMode('workHub')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'workHub' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
                     <BriefcaseIcon className="h-5 w-5 mr-2" /> Work Hub
                 </button>
-                {/* ▼▼▼ ADD FINANCIALS BUTTON ▼▼▼ */}
                 <button onClick={() => setViewMode('financials')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'financials' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
                     <DollarSignIcon className="h-5 w-5 mr-2" /> Financials
                 </button>
-                {/* ▼▼▼ RESTORE NETWORK BUTTON ▼▼▼ */}
                 <button onClick={() => setViewMode('network')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'network' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
                     <Share2Icon className="h-5 w-5 mr-2" /> Network
                 </button>
             </div>
-            {/* ▼▼▼ ADD SIGN OUT BUTTON ▼▼▼ */}
+
+            {/* ▼▼▼ ADD NEW GLOBAL 'ADD' BUTTON ▼▼▼ */}
+            <button 
+                onClick={() => onUpdate({ type: 'ADD_ITEM' })}
+                className="p-3 bg-purple-600 rounded-lg text-white hover:bg-purple-700 transition-colors" 
+                title="Add New Item"
+            >
+                <PlusIcon className="h-5 w-5" />
+            </button>
+            
             <button 
                 onClick={handleSignOut} 
                 className="p-3 bg-gray-200 rounded-lg text-gray-600 hover:bg-red-100 hover:text-red-600 transition-colors" 
