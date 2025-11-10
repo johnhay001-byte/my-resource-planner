@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-// ▼▼▼ Import new icons ▼▼▼
-import { PlusIcon, MessageSquareIcon, SparklesIcon, SpinnerIcon } from './Icons';
+// ▼▼▼ Import UsersIcon and new ResourceTimeline component ▼▼▼
+import { PlusIcon, MessageSquareIcon, SparklesIcon, SpinnerIcon, UsersIcon } from './Icons';
+import { ResourceTimeline } from './ResourceTimeline'; 
 import * as d3 from 'd3';
 
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -181,21 +182,19 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
     const [view, setView] = useState('list');
     const [tasks, setTasks] = useState([]);
     
-    // ▼▼▼ NEW AI FEATURE STATE ▼▼▼
+    // ... (AI feature state remains unchanged)
     const [aiInsights, setAiInsights] = useState('');
     const [isEnriching, setIsEnriching] = useState(false);
-    // ▲▲▲ END NEW AI FEATURE STATE ▲▲▲
 
     useEffect(() => {
         const projectTasks = project.tasks || [];
         setTasks(projectTasks);
-        // Reset AI insights when project changes
         setAiInsights(''); 
     }, [project]);
 
     if (!project) return null;
 
-    // ▼▼▼ NEW AI FEATURE FUNCTION ▼▼▼
+    // ... (AI feature function remains unchanged)
     const handleEnrichBrief = async () => {
         if (!project.brief) {
             setAiInsights('<p class="text-red-500">Project brief is empty. Cannot enrich.</p>');
@@ -244,7 +243,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
             setIsEnriching(false);
         }
     };
-    // ▲▲▲ END NEW AI FEATURE FUNCTION ▲▲▲
 
     const renderCurrentView = () => {
         switch (view) {
@@ -254,6 +252,10 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                 return <BoardView tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />;
             case 'gantt':
                 return <GanttView tasks={tasks} />;
+            // ▼▼▼ ADD NEW CASE FOR RESOURCES ▼▼▼
+            case 'resources':
+                return <ResourceTimeline tasks={tasks} allPeople={allPeople} />;
+            // ▲▲▲ END NEW CASE ▲▲▲
             default:
                 return null;
         }
@@ -266,7 +268,7 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                 <div className="flex-shrink-0">
                     <h2 className="text-3xl font-bold mb-2">{project.name}</h2>
                     
-                    {/* ▼▼▼ PROJECT BRIEF & AI BUTTON ▼▼▼ */}
+                    {/* ... (Project brief & AI button remains unchanged) ... */}
                     <div className="relative p-4 bg-gray-50 rounded-lg border">
                         <p className="text-gray-600 mb-0">{project.brief || 'No brief available for this project.'}</p>
                         <button 
@@ -282,9 +284,8 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                             {isEnriching ? 'Analyzing...' : 'Enrich Brief (AI)'}
                         </button>
                     </div>
-                    {/* ▲▲▲ END PROJECT BRIEF & AI BUTTON ▲▲▲ */}
 
-                    {/* ▼▼▼ AI INSIGHTS SECTION ▼▼▼ */}
+                    {/* ... (AI insights section remains unchanged) ... */}
                     {(isEnriching || aiInsights) && (
                         <div className="mt-4 p-4 border rounded-lg bg-white">
                             <h3 className="text-lg font-semibold mb-2 text-gray-800">AI Insights</h3>
@@ -294,20 +295,24 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                                     <span>Generating insights...</span>
                                 </div>
                             )}
-                            {/* Render the HTML response from the AI */}
                             <div 
                                 className="prose prose-sm max-w-none text-gray-700" 
                                 dangerouslySetInnerHTML={{ __html: aiInsights }} 
                             />
                         </div>
                     )}
-                    {/* ▲▲▲ END AI INSIGHTS SECTION ▲▲▲ */}
 
+                    {/* ▼▼▼ ADD NEW 'RESOURCES' TAB ▼▼▼ */}
                     <div className="flex border-b mt-4 mb-4">
                         <button onClick={() => setView('list')} className={`px-4 py-2 font-semibold ${view === 'list' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>List</button>
                         <button onClick={() => setView('board')} className={`px-4 py-2 font-semibold ${view === 'board' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Board</button>
                         <button onClick={() => setView('gantt')} className={`px-4 py-2 font-semibold ${view === 'gantt' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Gantt</button>
+                        <button onClick={() => setView('resources')} className={`px-4 py-2 font-semibold flex items-center ${view === 'resources' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>
+                            <UsersIcon className="h-4 w-4 mr-2" />
+                            Resources
+                        </button>
                     </div>
+                    {/* ▲▲▲ END NEW TAB ▲▲▲ */}
                 </div>
 
                 <div className="flex-grow overflow-y-auto -mx-8 px-8">
