@@ -122,7 +122,7 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                         <option value="">Select Parent Program...</option>
                         {availablePrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    {/* ▼▼▼ ADD BRIEF TEXTAREA ▼▼▼ */}
+                    {/* ADD BRIEF TEXTAREA */}
                     <textarea
                         value={brief}
                         onChange={(e) => setBrief(e.target.value)}

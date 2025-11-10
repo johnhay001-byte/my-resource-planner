@@ -22,21 +22,76 @@ import { AddItemModal } from './components/AddItemModal';
 import './index.css';
 
 export default function App() {
-    // ... (all state variables remain unchanged) ...
+    // --- App State (Data) ---
+    const [clients, setClients] = useState([]);
+    const [programs, setPrograms] = useState([]);
+    const [projects, setProjects] = useState([]);
+    const [people, setPeople] = useState([]);
+    const [tasks, setTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // --- UI State ---
+    const [activeFilter, setActiveFilter] = useState('all');
+    const [viewMode, setViewMode] = useState('orgChart');
+    const [selectedProject, setSelectedProject] = useState(null); 
+    const [detailedPerson, setDetailedPerson] = useState(null);
+    const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+    const [editingPerson, setEditingPerson] = useState(null);
+    const [editingTask, setEditingTask] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    
+    const [notification, setNotification] = useState({ message: '', type: '' });
+
+    // --- Auth State ---
+    const [auth, setAuth] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null); 
+    const [isAuthLoading, setIsAuthLoading] = useState(true); 
 
     // --- Auth Setup ---
     useEffect(() => {
-        // ... (no changes)
+        const app = db.app;
+        const authInstance = getAuth(app);
+        setAuth(authInstance); 
+
+        const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+            setCurrentUser(user); 
+            setIsAuthLoading(false); 
+            if(user) {
+                setViewMode('orgChart'); 
+                setActiveFilter('all');
+            }
+        });
+        return () => unsubscribe();
     }, []);
 
     // --- Data Fetching ---
     useEffect(() => {
-        // ... (no changes)
+        if (!currentUser) {
+            setLoading(false);
+            return; 
+        }
+        setLoading(true);
+        const unsubClients = onSnapshot(collection(db, "clients"), (snapshot) => setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
+        const unsubPrograms = onSnapshot(collection(db, "programs"), (snapshot) => setPrograms(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
+        const unsubProjects = onSnapshot(collection(db, "projects"), (snapshot) => setProjects(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
+        const unsubPeople = onSnapshot(collection(db, "people"), (snapshot) => setPeople(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
+        const unsubTasks = onSnapshot(collection(db, "tasks"), (snapshot) => {
+            setTasks(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            setLoading(false); 
+        });
+        return () => { unsubClients(); unsubPrograms(); unsubProjects(); unsubPeople(); unsubTasks(); };
     }, [currentUser]);
 
     // --- Notification Timer ---
     useEffect(() => {
-        // ... (no changes)
+        if (notification.message) {
+            const timer = setTimeout(() => {
+                setNotification({ message: '', type: '' });
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
     }, [notification]);
 
     // --- handleUpdate (Reducer) ---
@@ -44,37 +99,43 @@ export default function App() {
         setIsSaving(true);
         try {
             switch (action.type) {
+                // --- Global Add Item Modal ---
                 case 'ADD_ITEM':
-                    // ... (no change)
+                    setIsSaving(false);
+                    setIsAddItemModalOpen(true);
                     break;
                 case 'ADD_CLIENT':
-                    // ... (no change)
+                    await addDoc(collection(db, "clients"), action.item);
+                    setNotification({ message: 'Client added!', type: 'success' });
+                    setIsAddItemModalOpen(false);
                     break;
                 case 'ADD_PROGRAM':
-                    // ... (no change)
+                    await addDoc(collection(db, "programs"), action.item);
+                    setNotification({ message: 'Program added!', type: 'success' });
+                    setIsAddItemModalOpen(false);
                     break;
                 case 'ADD_PROJECT':
-                    // ▼▼▼ ADD brief and status from modal ▼▼▼
                     const newProject = { 
                         ...action.item, 
                         brief: action.item.brief || '',
-                        status: 'Pending' // Default status
+                        status: 'Pending', // Default status
+                        team: [],
                     };
                     await addDoc(collection(db, "projects"), newProject);
                     setNotification({ message: 'Project Request submitted!', type: 'success' });
                     setIsAddItemModalOpen(false);
                     break;
                 case 'ADD_TASK_FROM_GLOBAL': 
-                    // ... (no change)
+                    await addDoc(collection(db, "tasks"), action.item);
+                    setNotification({ message: 'Task added!', type: 'success' });
+                    setIsAddItemModalOpen(false);
                     break;
                 
-                // ▼▼▼ NEW ACTION: Open ProjectHub from Triage ▼▼▼
+                // --- Triage / ProjectHub Actions ---
                 case 'OPEN_PROJECT':
                     setSelectedProject(action.project);
                     setIsSaving(false);
                     break;
-                
-                // ▼▼▼ NEW ACTION: Approve a project ▼▼▼
                 case 'UPDATE_PROJECT_STATUS':
                     const projectRef = doc(db, "projects", action.projectId);
                     await updateDoc(projectRef, {
@@ -83,32 +144,80 @@ export default function App() {
                     setNotification({ message: `Project status updated to ${action.newStatus}`, type: 'success' });
                     break;
 
+                // --- Node/Org Chart Actions ---
                 case 'DELETE_NODE':
-                    // ... (no change)
+                    const collectionName = action.nodeType === 'client' ? 'clients' : action.nodeType === 'program' ? 'programs' : 'projects';
+                    if (action.nodeType !== 'person') {
+                        await deleteDoc(doc(db, collectionName, action.id));
+                        setNotification({ message: `${action.nodeType} deleted.`, type: 'success' });
+                    }
                     break;
+
+                // --- Person Modal ---
                 case 'ADD_PERSON':
-                    // ... (no change)
+                    setEditingPerson(null); 
+                    setIsPersonModalOpen(true);
+                    setIsSaving(false);
                     break;
                 case 'EDIT_PERSON':
-                    // ... (no change)
+                    setEditingPerson(action.person); 
+                    setIsPersonModalOpen(true);
+                    setIsSaving(false);
                     break;
                 case 'SAVE_PERSON':
-                    // ... (no change)
+                    if (action.person.id) { 
+                        const personRef = doc(db, "people", action.person.id);
+                        await setDoc(personRef, action.person, { merge: true }); 
+                    } else { 
+                        await addDoc(collection(db, "people"), action.person);
+                    }
+                    setIsPersonModalOpen(false);
+                    setEditingPerson(null); 
+                    setNotification({ message: 'Person saved successfully!', type: 'success' });
                     break;
                 case 'DELETE_PERSON':
-                     // ... (no change)
+                     await deleteDoc(doc(db, "people", action.personId));
+                     setNotification({ message: 'Person deleted.', type: 'success' });
                      break;
+                
+                // --- Task Modal ---
                 case 'ADD_TASK':
-                    // ... (no change)
+                    if (action.task) { // From ProjectHub ListView
+                        await addDoc(collection(db, 'tasks'), action.task);
+                        setNotification({ message: 'Task added.', type: 'success' });
+                    } else { // From WorkHub "New Task" button
+                        setEditingTask(null); 
+                        setIsTaskModalOpen(true);
+                        setIsSaving(false);
+                    }
                     break;
                 case 'EDIT_TASK':
-                    // ... (no change)
+                    setEditingTask(action.task); 
+                    setIsTaskModalOpen(true);
+                    setIsSaving(false);
                     break;
                 case 'SAVE_TASK':
-                    // ... (no change)
+                    if (!action.task.projectId) {
+                         setNotification({ message: 'A project must be selected.', type: 'error' });
+                         setIsSaving(false);
+                         return;
+                    }
+                    if (action.task.id) { 
+                        const taskRef = doc(db, "tasks", action.task.id);
+                        await setDoc(taskRef, action.task, { merge: true });
+                    } else { 
+                        await addDoc(collection(db, "tasks"), action.task);
+                    }
+                    setIsTaskModalOpen(false);
+                    setEditingTask(null); 
+                    setNotification({ message: 'Task saved successfully!', type: 'success' });
                     break;
                 case 'ADD_COMMENT':
-                    // ... (no change)
+                    const taskRef = doc(db, "tasks", action.taskId);
+                    await updateDoc(taskRef, {
+                        comments: arrayUnion({ author: action.author, text: action.commentText, date: new Date().toISOString() })
+                    });
+                    setNotification({ message: 'Comment added!', type: 'success' });
                     break;
                 default:
                     console.warn('Unknown action type:', action.type);
@@ -117,9 +226,9 @@ export default function App() {
         } catch (error) {
             console.error("Error handling update:", error);
             setNotification({ message: `Error: ${error.message}`, type: 'error' });
+            setIsSaving(false);
         } finally {
-             // ... (finally block logic remains unchanged, but we add our new actions) ...
-             if (!['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'].includes(action.type)) {
+            if (!['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'].includes(action.type)) {
                 setIsSaving(false);
             }
             if (['SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 'ADD_TASK_FROM_GLOBAL', 'UPDATE_PROJECT_STATUS'].includes(action.type)) {
@@ -130,22 +239,22 @@ export default function App() {
     
     // --- Sign Out Handler ---
     const handleSignOut = () => {
-        // ... (no changes)
+        if(auth) {
+            signOut(auth).catch((error) => console.error("Sign out error", error));
+        }
     };
 
     // --- Data Memoization ---
     const projectMap = useMemo(() => {
-        // ... (no changes)
+        const map = new Map();
+        projects.forEach(p => map.set(p.id, p));
+        return map;
     }, [projects]);
 
     const displayedData = useMemo(() => {
-        // ... (no changes to this function's logic)
-        // BUT it will now automatically filter out 'Pending' projects
-        // because of the logic in `projectsWithTasks`
         const clientList = activeFilter === 'all' ? clients : clients.filter(c => c.id === activeFilter);
         const peopleById = new Map(people.map(p => [p.id, p]));
         
-        // ▼▼▼ Filter out Pending projects from Org Chart view ▼▼▼
         const activeProjects = projects.filter(p => p.status !== 'Pending');
 
         const tasksByProjectId = new Map();
@@ -161,7 +270,6 @@ export default function App() {
             children: (programs || []).filter(p => p.clientId === client.id).map(program => ({
                 ...program,
                 type: 'program',
-                // ▼▼▼ Use activeProjects ▼▼▼
                 children: (activeProjects || []).filter(p => p.programId === program.id).map(project => ({
                     ...project,
                     type: 'project',
@@ -175,30 +283,75 @@ export default function App() {
                 }))
             }))
         }));
-    }, [activeFilter, clients, programs, projects, people, tasks]); // 'projects' is still a dependency
+    }, [activeFilter, clients, programs, projects, people, tasks]); 
 
 
     // --- View Renderer ---
     const renderView = () => {
-        // ... (no changes)
+        switch (viewMode) {
+            case 'orgChart':
+                return (
+                    <>
+                       <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                       <main className="p-8">
+                            <div className="space-y-4">
+                               {displayedData.map(client => (
+                                   <div key={client.id} className="bg-white p-6 rounded-lg shadow-md">
+                                        <Node 
+                                            node={client} 
+                                            level={0} 
+                                            onUpdate={handleUpdate} 
+                                            onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))}
+                                            onProjectSelect={(project) => setSelectedProject(project)}
+                                        />
+                                   </div>
+                               ))}
+                               {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
+                            </div>
+                       </main>
+                    </>
+                );
+            case 'teamManagement':
+                 return <TeamManagementView people={people} tasks={tasks} onUpdate={handleUpdate} onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} />;
+            case 'workHub':
+                return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} currentUser={currentUser} />;
+            case 'network':
+                return <div className="h-[calc(100vh-120px)]"><NetworkView data={displayedData} onNodeClick={(node) => console.log(node)} /></div>;
+            case 'financials':
+                return <FinancialsDashboard people={people} projects={projects} />;
+            default:
+                return (
+                     <>
+                       <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                       <main className="p-8"><div className="space-y-4">{displayedData.map(client => (<div key={client.id} className="bg-white p-6 rounded-lg shadow-md"><Node node={client} level={0} onUpdate={()=>{}} onPersonSelect={()=>{}} onProjectSelect={() => {}} /></div>))}</div></main>
+                    </>
+                );
+        }
     };
     
     // --- Auth-Based Return Logic ---
     if (isAuthLoading || (currentUser && loading)) {
-        // ... (no change)
+        return <LoadingSpinner />;
     }
     if (!currentUser) {
-        // ... (no change)
+        return <Login />;
     }
 
     // --- Main App Return ---
     return (
         <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
-            {/* ... (Notification component remains unchanged) ... */}
+            <Notification 
+                message={notification.message}
+                type={notification.type}
+                onClose={() => setNotification({ message: '', type: '' })}
+            />
             
             <div className="flex flex-col h-screen">
                 <Header 
-                    // ... (Header props remain unchanged)
+                    viewMode={viewMode} 
+                    setViewMode={setViewMode} 
+                    handleSignOut={handleSignOut}
+                    onUpdate={handleUpdate}
                 />
                 <div className="flex-1 overflow-y-auto">
                     {renderView()}
@@ -206,25 +359,47 @@ export default function App() {
                 
                 {/* --- Modals --- */}
                  <PersonModal 
-                    // ... (PersonModal props remain unchanged)
+                    isOpen={isPersonModalOpen}
+                    onClose={() => setIsPersonModalOpen(false)}
+                    onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
+                    personData={editingPerson}
+                    isSaving={isSaving}
                 />
                  <TaskModal 
-                    // ... (TaskModal props remain unchanged)
+                    isOpen={isTaskModalOpen}
+                    onClose={() => setIsTaskModalOpen(false)}
+                    onSave={(task) => handleUpdate({ type: 'SAVE_TASK', task })}
+                    taskData={editingTask}
+                    allPeople={people}
+                    projects={projects} // Pass projects
+                    isSaving={isSaving}
                 />
                 <AddItemModal
-                    // ... (AddItemModal props remain unchanged)
+                    isOpen={isAddItemModalOpen}
+                    onClose={() => setIsAddItemModalOpen(false)}
+                    onSave={handleUpdate}
+                    clients={clients}
+                    programs={programs}
+                    projects={projects}
+                    isSaving={isSaving}
                 />
                 
                 {/* --- Detail Cards / Overlays --- */}
                 {detailedPerson && (
                     <PersonDetailCard 
-                        // ... (PersonDetailCard props remain unchanged)
+                        person={detailedPerson} 
+                        onClose={() => setDetailedPerson(null)} 
+                        projectMap={projectMap} 
+                        tasks={tasks} 
                     />
                 )}
                 
                 {selectedProject && (
                     <ProjectHub
-                        // ... (ProjectHub props remain unchanged)
+                        project={selectedProject}
+                        onClose={() => setSelectedProject(null)}
+                        onUpdate={handleUpdate}
+                        allPeople={people}
                     />
                 )}
             </div>
