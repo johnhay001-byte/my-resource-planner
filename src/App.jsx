@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"; // Import arrayRemove
 
 // Import all our components
 import { Header } from './components/Header';
@@ -28,6 +28,7 @@ export default function App() {
     const [projects, setProjects] = useState([]);
     const [people, setPeople] = useState([]);
     const [tasks, setTasks] = useState([]);
+    const [groups, setGroups] = useState([]); // Add groups state
     const [loading, setLoading] = useState(true);
 
     // --- UI State ---
@@ -77,11 +78,13 @@ export default function App() {
         const unsubPrograms = onSnapshot(collection(db, "programs"), (snapshot) => setPrograms(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
         const unsubProjects = onSnapshot(collection(db, "projects"), (snapshot) => setProjects(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
         const unsubPeople = onSnapshot(collection(db, "people"), (snapshot) => setPeople(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
+        const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => setGroups(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })))); // Fetch groups
+        
         const unsubTasks = onSnapshot(collection(db, "tasks"), (snapshot) => {
             setTasks(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
             setLoading(false); 
         });
-        return () => { unsubClients(); unsubPrograms(); unsubProjects(); unsubPeople(); unsubTasks(); };
+        return () => { unsubClients(); unsubPrograms(); unsubProjects(); unsubPeople(); unsubTasks(); unsubGroups(); }; // Unsubscribe from groups
     }, [currentUser]);
 
     // --- Notification Timer ---
@@ -219,6 +222,35 @@ export default function App() {
                     });
                     setNotification({ message: 'Comment added!', type: 'success' });
                     break;
+                
+                // --- ▼▼▼ NEW GROUP ACTIONS ▼▼▼ ---
+                case 'ADD_GROUP':
+                    await addDoc(collection(db, "groups"), {
+                        name: action.name,
+                        members: []
+                    });
+                    setNotification({ message: 'Group created!', type: 'success' });
+                    break;
+                case 'DELETE_GROUP':
+                    await deleteDoc(doc(db, "groups", action.groupId));
+                    setNotification({ message: 'Group deleted.', type: 'success' });
+                    break;
+                case 'ADD_PERSON_TO_GROUP':
+                    const groupAddRef = doc(db, "groups", action.groupId);
+                    await updateDoc(groupAddRef, {
+                        members: arrayUnion(action.personId)
+                    });
+                    setNotification({ message: 'Member added to group.', type: 'success' });
+                    break;
+                case 'REMOVE_PERSON_FROM_GROUP':
+                    const groupRemoveRef = doc(db, "groups", action.groupId);
+                    await updateDoc(groupRemoveRef, {
+                        members: arrayRemove(action.personId)
+                    });
+                    setNotification({ message: 'Member removed from group.', type: 'success' });
+                    break;
+                // --- ▲▲▲ END NEW GROUP ACTIONS ▲▲▲ ---
+
                 default:
                     console.warn('Unknown action type:', action.type);
                     setIsSaving(false);
@@ -228,10 +260,14 @@ export default function App() {
             setNotification({ message: `Error: ${error.message}`, type: 'error' });
             setIsSaving(false);
         } finally {
-            if (!['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'].includes(action.type)) {
+            // Unset saving flag for non-modal-opening actions
+            const nonModalActions = ['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'];
+            if (!nonModalActions.includes(action.type)) {
                 setIsSaving(false);
             }
-            if (['SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 'ADD_TASK_FROM_GLOBAL', 'UPDATE_PROJECT_STATUS'].includes(action.type)) {
+            // Unset saving flag for modal save actions
+            const modalSaveActions = ['SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 'ADD_TASK_FROM_GLOBAL', 'UPDATE_PROJECT_STATUS', 'ADD_GROUP', 'DELETE_GROUP', 'ADD_PERSON_TO_GROUP', 'REMOVE_PERSON_FROM_GROUP'];
+            if (modalSaveActions.includes(action.type)) {
                 setIsSaving(false);
             }
         }
@@ -312,9 +348,23 @@ export default function App() {
                     </>
                 );
             case 'teamManagement':
-                 return <TeamManagementView people={people} tasks={tasks} onUpdate={handleUpdate} onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} />;
+                 return <TeamManagementView 
+                            people={people} 
+                            tasks={tasks} 
+                            groups={groups} // Pass groups
+                            onUpdate={handleUpdate} 
+                            onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} 
+                        />;
             case 'workHub':
-                return <WorkHub clients={clients} programs={programs} projects={projects} tasks={tasks} allPeople={people} onUpdate={handleUpdate} currentUser={currentUser} />;
+                return <WorkHub 
+                            clients={clients} 
+                            programs={programs} 
+                            projects={projects} 
+                            tasks={tasks} 
+                            allPeople={people} 
+                            onUpdate={handleUpdate} 
+                            currentUser={currentUser} 
+                        />;
             case 'network':
                 return <div className="h-[calc(100vh-120px)]"><NetworkView data={displayedData} onNodeClick={(node) => console.log(node)} /></div>;
             case 'financials':
