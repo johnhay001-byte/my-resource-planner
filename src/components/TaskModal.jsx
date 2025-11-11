@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SpinnerIcon } from './Icons';
 
-export const TaskModal = ({ isOpen, onClose, onSave, taskData, allPeople, projects, isSaving }) => {
+export const TaskModal = ({ isOpen, onClose, onSave, taskData, allPeople, projects, groups, isSaving }) => {
     const [task, setTask] = useState({});
 
     useEffect(() => {
@@ -17,6 +17,7 @@ export const TaskModal = ({ isOpen, onClose, onSave, taskData, allPeople, projec
                     endDate: new Date().toISOString().split('T')[0],
                     projectId: '', // Default no project
                     assigneeId: null,
+                    assigneeGroupId: null, // Add new group field
                 });
             }
         }
@@ -26,7 +27,20 @@ export const TaskModal = ({ isOpen, onClose, onSave, taskData, allPeople, projec
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setTask(prev => ({ ...prev, [name]: value }));
+        
+        setTask(prev => {
+            const newTask = { ...prev, [name]: value };
+            
+            // Logic to ensure only one assignee type is selected
+            if (name === 'assigneeId' && value) {
+                newTask.assigneeGroupId = null; // Clear group if person is selected
+            }
+            if (name === 'assigneeGroupId' && value) {
+                newTask.assigneeId = null; // Clear person if group is selected
+            }
+            
+            return newTask;
+        });
     };
 
     const handleSave = () => {
@@ -74,13 +88,26 @@ export const TaskModal = ({ isOpen, onClose, onSave, taskData, allPeople, projec
                         </div>
                     </div>
                     
+                    {/* --- ASSIGNEE DROPDOWNS --- */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Assignee</label>
+                        <label className="block text-sm font-medium text-gray-700">Assign to Person</label>
                          <select name="assigneeId" value={task.assigneeId || ''} onChange={handleChange} className="w-full p-2 border rounded-md bg-gray-50">
                             <option value="">Unassigned</option>
                             {allPeople.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
+                    
+                    <div className="text-center text-xs font-medium text-gray-500">OR</div>
+
+                    {/* ▼▼▼ NEW GROUP DROPDOWN ▼▼▼ */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Assign to Group</label>
+                         <select name="assigneeGroupId" value={task.assigneeGroupId || ''} onChange={handleChange} className="w-full p-2 border rounded-md bg-gray-50">
+                            <option value="">Unassigned</option>
+                            {(groups || []).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    {/* ▲▲▲ END NEW GROUP DROPDOWN ▲▲▲ */}
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Status</label>

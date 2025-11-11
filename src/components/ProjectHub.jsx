@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-// ▼▼▼ Import CalendarDaysIcon ▼▼▼
-import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon, UsersIcon } from './Icons'; // Import UsersIcon
 import { GanttView } from './GanttView';
 import { ResourceTimeline } from './ResourceTimeline';
 
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 // --- Board View Component (Kanban) ---
-const BoardView = ({ tasks, allPeople, onUpdate }) => {
+const BoardView = ({ tasks, allPeople, allGroups, onUpdate }) => { // Add allGroups
     const [columns, setColumns] = useState({
         'To Do': [],
         'In Progress': [],
@@ -47,7 +46,18 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
         }
     };
     
-    const getAssignee = (assigneeId) => allPeople.find(p => p.id === assigneeId);
+    // Find either the person or the group
+    const getAssignee = (task) => {
+        if (task.assigneeId) {
+            const person = allPeople.find(p => p.id === task.assigneeId);
+            return { type: 'person', data: person };
+        }
+        if (task.assigneeGroupId) {
+            const group = allGroups.find(g => g.id === task.assigneeGroupId);
+            return { type: 'group', data: group };
+        }
+        return { type: 'unassigned' };
+    };
 
     return (
         <div className="flex gap-6 p-4 bg-gray-50 rounded-lg">
@@ -61,7 +71,7 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
                     <h3 className="font-bold text-lg mb-4 px-2">{status} ({tasksInColumn.length})</h3>
                     <div className="space-y-3 h-full">
                         {tasksInColumn.map(task => {
-                            const assignee = getAssignee(task.assigneeId);
+                            const assignee = getAssignee(task);
                             return (
                                 <div
                                     key={task.id}
@@ -72,9 +82,14 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
                                     <p className="font-semibold">{task.name}</p>
                                     <div className="text-xs text-gray-500 mt-2 flex justify-between items-center">
                                         <span>{formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
-                                        {assignee && (
-                                            <span title={assignee.name} className="flex items-center h-6 w-6 justify-center bg-gray-200 rounded-full font-bold text-purple-800">
-                                                {assignee.name.charAt(0)}
+                                        {assignee.type === 'person' && assignee.data && (
+                                            <span title={assignee.data.name} className="flex items-center h-6 w-6 justify-center bg-gray-200 rounded-full font-bold text-purple-800">
+                                                {assignee.data.name.charAt(0)}
+                                            </span>
+                                        )}
+                                        {assignee.type === 'group' && assignee.data && (
+                                            <span title={assignee.data.name} className="flex items-center h-6 w-6 justify-center bg-blue-200 rounded-full font-bold text-blue-800">
+                                                <UsersIcon className="h-4 w-4" />
                                             </span>
                                         )}
                                     </div>
@@ -90,7 +105,7 @@ const BoardView = ({ tasks, allPeople, onUpdate }) => {
 
 
 // --- Main Project Hub Component ---
-export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
+export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups }) => { // Add allGroups
     const [view, setView] = useState('list');
     const [tasks, setTasks] = useState([]);
     
@@ -122,7 +137,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
         const apiKey = ""; // Leave empty
         
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-        // ▲▲▲ (Removed typo 'generativelangugae') ▲▲▲
 
         try {
             const response = await fetch(apiUrl, {
@@ -158,9 +172,9 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
     const renderCurrentView = () => {
         switch (view) {
             case 'list':
-                return <ListView tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} projectId={project.id} />;
+                return <ListView tasks={tasks} allPeople={allPeople} allGroups={allGroups} onUpdate={onUpdate} projectId={project.id} />;
             case 'board':
-                return <BoardView tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />;
+                return <BoardView tasks={tasks} allPeople={allPeople} allGroups={allGroups} onUpdate={onUpdate} />;
             case 'gantt':
                 return <GanttView tasks={tasks} />;
             case 'resources':
@@ -231,7 +245,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                         <button onClick={() => setView('list')} className={`px-4 py-2 font-semibold ${view === 'list' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>List</button>
                         <button onClick={() => setView('board')} className={`px-4 py-2 font-semibold ${view === 'board' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Board</button>
                         <button onClick={() => setView('gantt')} className={`px-4 py-2 font-semibold ${view === 'gantt' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Gantt</button>
-                        {/* ▼▼▼ ICON ADDED HERE ▼▼▼ */}
                         <button onClick={() => setView('resources')} className={`px-4 py-2 font-semibold flex items-center ${view === 'resources' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>
                            <CalendarDaysIcon className="h-5 w-5 mr-2" /> Resources
                         </button>
@@ -247,7 +260,7 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
 };
 
 // --- List View Components (already existed) ---
-const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
+const ListView = ({ tasks, allPeople, allGroups, onUpdate, projectId }) => { // Add allGroups
     const [newTaskName, setNewTaskName] = useState('');
 
     const handleAddTask = () => {
@@ -259,6 +272,7 @@ const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
                 name: newTaskName,
                 status: 'To Do',
                 assigneeId: null,
+                assigneeGroupId: null, // Add new field
                 startDate: new Date().toISOString().split('T')[0],
                 endDate: new Date().toISOString().split('T')[0],
                 comments: []
@@ -283,22 +297,41 @@ const ListView = ({ tasks, allPeople, onUpdate, projectId }) => {
             </div>
             <div className="divide-y divide-gray-200">
                 {tasks.map(task => (
-                    <TaskItem key={task.id} task={task} allPeople={allPeople} onUpdate={onUpdate} />
+                    <TaskItem key={task.id} task={task} allPeople={allPeople} allGroups={allGroups} onUpdate={onUpdate} /> // Pass allGroups
                 ))}
             </div>
         </div>
     );
 };
 
-const TaskItem = ({ task, allPeople, onUpdate }) => {
+const TaskItem = ({ task, allPeople, allGroups, onUpdate }) => { // Add allGroups
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
+    
+    // Find either the person or the group
     const assignee = allPeople.find(p => p.id === task.assigneeId);
+    const assigneeGroup = allGroups.find(g => g.id === task.assigneeGroupId);
 
     const handleAddComment = () => {
         if (!newComment.trim()) return;
         onUpdate({ type: 'ADD_COMMENT', taskId: task.id, commentText: newComment, author: 'User' });
         setNewComment('');
+    };
+    
+    // --- Assignee Display Logic ---
+    const renderAssigneeName = () => {
+        if (assignee) {
+            return assignee.name;
+        }
+        if (assigneeGroup) {
+            return (
+                <span className="flex items-center font-semibold text-blue-700">
+                    <UsersIcon className="h-4 w-4 mr-1.5" />
+                    {assigneeGroup.name}
+                </span>
+            );
+        }
+        return 'Unassigned';
     };
 
     return (
@@ -308,10 +341,17 @@ const TaskItem = ({ task, allPeople, onUpdate }) => {
                     <p className="font-semibold text-lg">{task.name}</p>
                     <div className="text-sm text-gray-500 flex items-center gap-4 mt-1">
                         <span>Status: {task.status}</span>
-                        <span>Assignee: {assignee ? assignee.name : 'Unassigned'}</span>
+                        <span>Assignee: {renderAssigneeName()}</span>
                         <span>Dates: {formatDate(task.startDate)} - {formatDate(task.endDate)}</span>
                     </div>
                 </div>
+                {/* Edit button now opens the full task modal */}
+                <button 
+                    onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })}
+                    className="p-2 text-gray-500 hover:text-purple-600"
+                >
+                    <EditIcon className="h-5 w-5" />
+                </button>
                 <button onClick={() => setShowComments(!showComments)} className="p-2 text-gray-500 hover:text-purple-600">
                     <MessageSquareIcon className="h-5 w-5" />
                 </button>

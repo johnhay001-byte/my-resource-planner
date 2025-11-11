@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { SpinnerIcon, SparklesIcon } from './Icons';
 
-export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, isSaving }) => {
+export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, groups, allPeople, isSaving }) => { // Add groups & allPeople
     const [itemType, setItemType] = useState('Project Request');
     
     // Form state
     const [name, setName] = useState('');
     const [brief, setBrief] = useState('');
     const [parentId, setParentId] = useState('');
+    const [assigneeId, setAssigneeId] = useState(null); // New state for task assignee
+    const [assigneeType, setAssigneeType] = useState('person'); // New state for task assignee type
     
     // AI State
     const [aiInsights, setAiInsights] = useState('');
@@ -19,6 +21,8 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
         setName('');
         setBrief('');
         setParentId('');
+        setAssigneeId(null);
+        setAssigneeType('person');
         setAiInsights('');
         setIsEnriching(false);
     };
@@ -54,7 +58,8 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                     status: 'To Do',
                     startDate: new Date().toISOString().split('T')[0],
                     endDate: new Date().toISOString().split('T')[0],
-                    assigneeId: null,
+                    assigneeId: assigneeId,
+                    assigneeType: assigneeType, // Add assignee type
                 };
                 break;
             default:
@@ -68,6 +73,14 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
     const handleItemTypeChange = (e) => {
         setItemType(e.target.value);
         resetForm();
+    };
+
+    const handleAssigneeChange = (e) => {
+        const selectedValue = e.target.value;
+        const selectedOption = e.target.options[e.target.selectedIndex];
+        
+        setAssigneeId(selectedValue || null);
+        setAssigneeType(selectedValue ? selectedOption.getAttribute('data-type') : 'person');
     };
 
     // --- AI Enrichment Function ---
@@ -85,7 +98,6 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
         
         // ▼▼▼ THIS IS THE FIX ▼▼▼
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-        // ▲▲▲ (Removed typo 'generativelangugae') ▲▲▲
 
         try {
             const response = await fetch(apiUrl, {
@@ -190,6 +202,24 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                         </select>
                         <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Task Name" className="w-full p-2 border rounded-md" />
                         <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Task Brief/Notes..." className="w-full p-2 border rounded-md" rows="3"></textarea>
+                        
+                        {/* ▼▼▼ ADDED ASSIGNEE DROPDOWN ▼▼▼ */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Assignee</label>
+                            <select 
+                                value={assigneeId || ''} 
+                                onChange={handleAssigneeChange} 
+                                className="w-full p-2 border rounded-md bg-gray-50"
+                            >
+                                <option value="" data-type="person">Unassigned</option>
+                                <optgroup label="Groups">
+                                    {groups.map(g => <option key={g.id} value={g.id} data-type="group">{g.name}</option>)}
+                                </optgroup>
+                                <optgroup label="People">
+                                    {allPeople.map(p => <option key={p.id} value={p.id} data-type="person">{p.name}</option>)}
+                                </optgroup>
+                            </select>
+                        </div>
                     </>
                 );
             default:

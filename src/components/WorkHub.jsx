@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon, SearchIcon, CheckCircleIcon } from './Icons';
+import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon, SearchIcon, CheckCircleIcon, UsersIcon } from './Icons'; // Import UsersIcon
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -7,8 +7,8 @@ const formatDate = (dateString) => {
 };
 
 // --- MAIN WORK HUB COMPONENT ---
-export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdate, currentUser }) => {
-    const [hubView, setHubView] = useState('triage'); // 'triage', 'allProjects', or 'myTasks'
+export const WorkHub = ({ clients, programs, projects, tasks, allPeople, groups, onUpdate, currentUser }) => { // Add groups
+    const [hubView, setHubView] = useState('triage'); 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
 
@@ -37,7 +37,6 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
         }));
     }, [projects, tasks]);
 
-    // Split projects by status
     const { pendingProjects, activeProjects } = useMemo(() => {
         const pending = [];
         const active = [];
@@ -95,7 +94,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
     const renderAllProjects = () => (
         <div className="space-y-6">
             {displayedProjects.map(project => (
-                <ProjectCard key={project.id} project={project} allPeople={allPeople} onUpdate={onUpdate} />
+                <ProjectCard key={project.id} project={project} allPeople={allPeople} allGroups={groups} onUpdate={onUpdate} /> 
             ))}
              {displayedProjects.length === 0 && <p className="text-center text-gray-500 py-10">No projects or tasks match your filters.</p>}
         </div>
@@ -108,7 +107,7 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
             </h3>
             <div className="space-y-3">
                 {myTasks.map(task => (
-                    <TaskItem key={task.id} task={task} allPeople={allPeople} onUpdate={onUpdate} showProject />
+                    <TaskItem key={task.id} task={task} allPeople={allPeople} allGroups={groups} onUpdate={onUpdate} showProject />
                 ))}
                 {myTasks.length === 0 && <p className="text-center text-gray-500 py-10">
                     {currentUserProfile ? 'You have no tasks matching the current filters.' : 'Could not find your user profile. Make sure your login email matches a user in the Team list.'}
@@ -205,13 +204,13 @@ const TriageItem = ({ project, onUpdate }) => {
     );
 };
 
-const ProjectCard = ({ project, allPeople, onUpdate }) => {
+const ProjectCard = ({ project, allPeople, allGroups, onUpdate }) => { // Add allGroups
     return (
         <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-xl font-bold mb-4">{project.name}</h3>
             <div className="space-y-3">
                 {project.tasks.map(task => (
-                    <TaskItem key={task.id} task={task} allPeople={allPeople} onUpdate={onUpdate} />
+                    <TaskItem key={task.id} task={task} allPeople={allPeople} allGroups={allGroups} onUpdate={onUpdate} /> // Pass allGroups
                 ))}
                 {project.tasks.length === 0 && <p className="text-sm text-gray-500">No tasks match the current filters.</p>}
             </div>
@@ -219,10 +218,13 @@ const ProjectCard = ({ project, allPeople, onUpdate }) => {
     );
 };
 
-const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
+const TaskItem = ({ task, allPeople, allGroups, onUpdate, showProject }) => { // Add allGroups
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
+    
+    // Find either the person or the group
     const assignee = allPeople.find(p => p.id === task.assigneeId);
+    const assigneeGroup = allGroups.find(g => g.id === task.assigneeGroupId);
 
     const handleAddComment = () => {
         if (!newComment.trim()) return;
@@ -236,6 +238,28 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
         'Blocked': 'bg-red-200',
         'Complete': 'bg-green-200' 
     };
+    
+    // --- Assignee Display Logic ---
+    const renderAssignee = () => {
+        if (assignee) {
+            // Person is assigned
+            return (
+                <span title={assignee.name} className="flex items-center h-8 w-8 justify-center bg-gray-200 rounded-full font-bold text-purple-800 text-sm">
+                    {assignee.name.split(' ').map(n => n[0]).join('')}
+                </span>
+            );
+        }
+        if (assigneeGroup) {
+            // Group is assigned
+            return (
+                <span title={assigneeGroup.name} className="flex items-center h-8 w-8 justify-center bg-blue-200 rounded-full font-bold text-blue-800 text-sm">
+                    <UsersIcon className="h-4 w-4" />
+                </span>
+            );
+        }
+        // Unassigned
+        return null;
+    };
 
     return (
         <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
@@ -248,11 +272,7 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
                     </div>
                 </div>
                 <div className="flex items-center">
-                    {assignee && (
-                        <span title={assignee.name} className="flex items-center h-8 w-8 justify-center bg-gray-200 rounded-full font-bold text-purple-800 text-sm">
-                            {assignee.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                    )}
+                    {renderAssignee()}
                     <button onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })} className="p-2 text-gray-500 hover:text-purple-600 ml-2">
                         <EditIcon className="h-5 w-5" />
                     </button>
