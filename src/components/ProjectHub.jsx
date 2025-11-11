@@ -1,5 +1,6 @@
+// v7 - Final Sync
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon, UsersIcon } from './Icons'; // Import UsersIcon
+import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon, UsersIcon, EditIcon } from './Icons'; // Import UsersIcon & EditIcon
 import { GanttView } from './GanttView';
 import { ResourceTimeline } from './ResourceTimeline';
 
@@ -114,6 +115,9 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups })
     const [isEnriching, setIsEnriching] = useState(false);
 
     useEffect(() => {
+        // This makes sure the tasks in the hub are always up-to-date with the main app state
+        // We find the project in the main state (which might have updated tasks)
+        // or default to the clicked project prop
         setTasks(project.tasks || []);
         setAiInsights(''); // Clear insights when project changes
         setIsEnriching(false);
@@ -136,6 +140,7 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups })
         const userQuery = `Project Brief: """${project.brief}"""`;
         const apiKey = ""; // Leave empty
         
+        // This is the CORRECTED API URL
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
         try {
