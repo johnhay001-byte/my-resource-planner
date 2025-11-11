@@ -1,13 +1,13 @@
 // v7 - Final Sync
-import React, { useState, useEffect } from 'react';
-import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon, UsersIcon, EditIcon } from './Icons'; // Import UsersIcon & EditIcon
+import React, { useState, useEffect, useMemo } from 'react';
+import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon, UsersIcon, EditIcon, UserPlusIcon, UserMinusIcon } from './Icons'; // Import new icons
 import { GanttView } from './GanttView';
 import { ResourceTimeline } from './ResourceTimeline';
 
 const formatDate = (dateString) => new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 // --- Board View Component (Kanban) ---
-const BoardView = ({ tasks, allPeople, allGroups, onUpdate }) => { // Add allGroups
+const BoardView = ({ tasks, allPeople, allGroups, onUpdate }) => { 
     const [columns, setColumns] = useState({
         'To Do': [],
         'In Progress': [],
@@ -104,6 +104,130 @@ const BoardView = ({ tasks, allPeople, allGroups, onUpdate }) => { // Add allGro
     );
 };
 
+// --- TEAM VIEW (Project Casting) ---
+const TeamView = ({ project, allPeople, allGroups, onUpdate }) => {
+    const [selectedPerson, setSelectedPerson] = useState('');
+    const [selectedGroup, setSelectedGroup] = useState('');
+
+    const peopleMap = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
+    
+    const currentTeam = useMemo(() => {
+        return (project.team || []).map(id => peopleMap.get(id)).filter(Boolean);
+    }, [project.team, peopleMap]);
+    
+    const availablePeople = useMemo(() => {
+        const teamIds = new Set(project.team || []);
+        return allPeople.filter(p => !teamIds.has(p.id));
+    }, [project.team, allPeople]);
+
+    const handleAddPerson = () => {
+        if (!selectedPerson) return;
+        onUpdate({
+            type: 'ADD_TEAM_MEMBER',
+            projectId: project.id,
+            personId: selectedPerson
+        });
+        setSelectedPerson('');
+    };
+
+    const handleRemovePerson = (personId) => {
+        onUpdate({
+            type: 'REMOVE_TEAM_MEMBER',
+            projectId: project.id,
+            personId: personId
+        });
+    };
+    
+    const handleAssignGroup = () => {
+        if (!selectedGroup) return;
+        onUpdate({
+            type: 'ASSIGN_GROUP_TO_PROJECT',
+            projectId: project.id,
+            groupId: selectedGroup
+        });
+        setSelectedGroup('');
+    };
+
+    return (
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* --- Left Column: Assign Team --- */}
+            <div className="space-y-6">
+                {/* Assign Group */}
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                    <h3 className="font-semibold mb-3">Assign a Group</h3>
+                    <div className="flex gap-2">
+                        <select
+                            value={selectedGroup}
+                            onChange={(e) => setSelectedGroup(e.target.value)}
+                            className="flex-grow p-2 border rounded-md bg-white"
+                        >
+                            <option value="">Select a group...</option>
+                            {allGroups.map(g => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={handleAssignGroup}
+                            disabled={!selectedGroup}
+                            className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                        >
+                            <UsersIcon className="h-4 w-4 mr-2" /> Assign
+                        </button>
+                    </div>
+                </div>
+                
+                {/* Add Individual */}
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                    <h3 className="font-semibold mb-3">Add a Person</h3>
+                    <div className="flex gap-2">
+                        <select
+                            value={selectedPerson}
+                            onChange={(e) => setSelectedPerson(e.target.value)}
+                            className="flex-grow p-2 border rounded-md bg-white"
+                        >
+                            <option value="">Select a person to add...</option>
+                            {availablePeople.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} ({p.role})</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={handleAddPerson}
+                            disabled={!selectedPerson}
+                            className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            <UserPlusIcon className="h-4 w-4 mr-2" /> Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            {/* --- Right Column: Current Team --- */}
+            <div className="bg-white rounded-lg">
+                <h3 className="text-xl font-bold mb-4">Current Project Team ({currentTeam.length})</h3>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                    {currentTeam.length > 0 ? currentTeam.map(person => (
+                        <div key={person.id} className="flex justify-between items-center p-3 bg-gray-100 rounded-md">
+                            <div>
+                                <p className="font-medium">{person.name}</p>
+                                <p className="text-xs text-gray-500">{person.role}</p>
+                            </div>
+                            <button
+                                onClick={() => handleRemovePerson(person.id)}
+                                className="p-2 text-gray-400 hover:text-red-600"
+                                title="Remove from project"
+                            >
+                                <UserMinusIcon className="h-5 w-5" />
+                            </button>
+                        </div>
+                    )) : (
+                        <p className="text-sm text-gray-500 italic">No one is assigned to this project yet.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- Main Project Hub Component ---
 export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups }) => { // Add allGroups
@@ -115,9 +239,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups })
     const [isEnriching, setIsEnriching] = useState(false);
 
     useEffect(() => {
-        // This makes sure the tasks in the hub are always up-to-date with the main app state
-        // We find the project in the main state (which might have updated tasks)
-        // or default to the clicked project prop
         setTasks(project.tasks || []);
         setAiInsights(''); // Clear insights when project changes
         setIsEnriching(false);
@@ -184,6 +305,8 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups })
                 return <GanttView tasks={tasks} />;
             case 'resources':
                 return <ResourceTimeline tasks={tasks} allPeople={allPeople} onUpdate={onUpdate} />;
+            case 'team': // ▼▼▼ NEW CASE ▼▼▼
+                return <TeamView project={project} allPeople={allPeople} allGroups={allGroups} onUpdate={onUpdate} />;
             default:
                 return null;
         }
@@ -246,12 +369,17 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups })
                          </div>
                     )}
 
+                    {/* --- TAB NAVIGATION --- */}
                     <div className="flex border-b mt-4 mb-4">
                         <button onClick={() => setView('list')} className={`px-4 py-2 font-semibold ${view === 'list' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>List</button>
                         <button onClick={() => setView('board')} className={`px-4 py-2 font-semibold ${view === 'board' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Board</button>
                         <button onClick={() => setView('gantt')} className={`px-4 py-2 font-semibold ${view === 'gantt' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Gantt</button>
                         <button onClick={() => setView('resources')} className={`px-4 py-2 font-semibold flex items-center ${view === 'resources' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>
                            <CalendarDaysIcon className="h-5 w-5 mr-2" /> Resources
+                        </button>
+                        {/* ▼▼▼ NEW TEAM TAB ▼▼▼ */}
+                        <button onClick={() => setView('team')} className={`px-4 py-2 font-semibold flex items-center ${view === 'team' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>
+                           <UsersIcon className="h-5 w-5 mr-2" /> Team
                         </button>
                     </div>
                 </div>

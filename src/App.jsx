@@ -142,15 +142,21 @@ export default function App() {
                 
                 // --- Triage / ProjectHub Actions ---
                 case 'OPEN_PROJECT':
-                    setSelectedProject(action.project);
+                    // Find the most up-to-date version of the project
+                    const liveProject = projects.find(p => p.id === action.project.id);
+                    setSelectedProject(liveProject || action.project);
                     setIsSaving(false);
                     break;
                 case 'UPDATE_PROJECT_STATUS':
-                    const projectRef = doc(db, "projects", action.projectId);
-                    await updateDoc(projectRef, {
+                    const projectRef_status = doc(db, "projects", action.projectId);
+                    await updateDoc(projectRef_status, {
                         status: action.newStatus
                     });
                     setNotification({ message: `Project status updated to ${action.newStatus}`, type: 'success' });
+                    // Update selectedProject state if it's the one being approved
+                    if (selectedProject && selectedProject.id === action.projectId) {
+                        setSelectedProject(prev => ({ ...prev, status: action.newStatus }));
+                    }
                     break;
 
                 // --- Node/Org Chart Actions ---
@@ -176,7 +182,7 @@ export default function App() {
                 case 'SAVE_PERSON':
                     if (action.person.id) { 
                         const personRef = doc(db, "people", action.person.id);
-                        await setDoc(personRef, action.person, { merge: true }); 
+                        await setDoc(personRef, personRef, action.person, { merge: true }); 
                     } else { 
                         await addDoc(collection(db, "people"), action.person);
                     }
@@ -222,14 +228,14 @@ export default function App() {
                     setNotification({ message: 'Task saved successfully!', type: 'success' });
                     break;
                 case 'ADD_COMMENT':
-                    const taskRef = doc(db, "tasks", action.taskId);
-                    await updateDoc(taskRef, {
+                    const taskRef_comment = doc(db, "tasks", action.taskId);
+                    await updateDoc(taskRef_comment, {
                         comments: arrayUnion({ author: action.author, text: action.commentText, date: new Date().toISOString() })
                     });
                     setNotification({ message: 'Comment added!', type: 'success' });
                     break;
                 
-                // --- GROUP ACTIONS ---
+                // --- GROUP ACTIONS (TeamManagementView) ---
                 case 'ADD_GROUP':
                     await addDoc(collection(db, "groups"), {
                         name: action.name,
@@ -256,6 +262,32 @@ export default function App() {
                     setNotification({ message: 'Member removed from group.', type: 'success' });
                     break;
 
+                // --- PROJECT CASTING ACTIONS (ProjectHub) ---
+                case 'ADD_TEAM_MEMBER':
+                    const projectRef_add = doc(db, "projects", action.projectId);
+                    await updateDoc(projectRef_add, {
+                        team: arrayUnion(action.personId)
+                    });
+                    setNotification({ message: 'Team member added.', type: 'success' });
+                    break;
+                case 'REMOVE_TEAM_MEMBER':
+                    const projectRef_remove = doc(db, "projects", action.projectId);
+                    await updateDoc(projectRef_remove, {
+                        team: arrayRemove(action.personId)
+                    });
+                    setNotification({ message: 'Team member removed.', type: 'success' });
+                    break;
+                case 'ASSIGN_GROUP_TO_PROJECT':
+                    const groupToAssign = groups.find(g => g.id === action.groupId);
+                    if (groupToAssign && groupToAssign.members.length > 0) {
+                        const projectRef_assign = doc(db, "projects", action.projectId);
+                        await updateDoc(projectRef_assign, {
+                            team: arrayUnion(...groupToAssign.members) // Add all members from group
+                        });
+                        setNotification({ message: `Group "${groupToAssign.name}" assigned to project.`, type: 'success' });
+                    }
+                    break;
+
                 default:
                     console.warn('Unknown action type:', action.type);
                     setIsSaving(false);
@@ -265,12 +297,24 @@ export default function App() {
             setNotification({ message: `Error: ${error.message}`, type: 'error' });
             setIsSaving(false);
         } finally {
-            const nonModalActions = ['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'];
-            if (!nonModalActions.includes(action.type)) {
+            // This logic ensures spinners stop correctly
+            const nonModalOpens = ['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'];
+            if (nonModalOpens.includes(action.type)) {
                 setIsSaving(false);
             }
-            const modalSaveActions = ['SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 'ADD_TASK_FROM_GLOBAL', 'UPDATE_PROJECT_STATUS', 'ADD_GROUP', 'DELETE_GROUP', 'ADD_PERSON_TO_GROUP', 'REMOVE_PERSON_FROM_GROUP'];
-            if (modalSaveActions.includes(action.type)) {
+            
+            const modalSaves = [
+                'SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 
+                'ADD_TASK_FROM_GLOBAL', 'UPDATE_PROJECT_STATUS', 'ADD_GROUP', 'DELETE_GROUP', 
+                'ADD_PERSON_TO_GROUP', 'REMOVE_PERSON_FROM_GROUP', 'ADD_TEAM_MEMBER', 
+                'REMOVE_TEAM_MEMBER', 'ASSIGN_GROUP_TO_PROJECT'
+            ];
+            if (modalSaves.includes(action.type)) {
+                setIsSaving(false);
+            }
+            
+            // Special case for simple deletes
+            if(action.type === 'DELETE_NODE' || action.type === 'DELETE_PERSON') {
                 setIsSaving(false);
             }
         }
@@ -451,7 +495,7 @@ export default function App() {
                 
                 {selectedProject && (
                     <ProjectHub
-                        project={selectedProject}
+                        project={projects.find(p => p.id === selectedProject.id) || selectedProject} // Use live data
                         onClose={() => setSelectedProject(null)}
                         onUpdate={handleUpdate}
                         allPeople={people}
