@@ -109,12 +109,15 @@ const TeamView = ({ project, allPeople, allGroups, onUpdate }) => {
     const [selectedPerson, setSelectedPerson] = useState('');
     const [selectedGroup, setSelectedGroup] = useState('');
 
+    // Create a quick lookup map for person details
     const peopleMap = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
     
+    // Get full person objects for the project's team
     const currentTeam = useMemo(() => {
         return (project.team || []).map(id => peopleMap.get(id)).filter(Boolean);
     }, [project.team, peopleMap]);
     
+    // Create a list of people *not* already on the team
     const availablePeople = useMemo(() => {
         const teamIds = new Set(project.team || []);
         return allPeople.filter(p => !teamIds.has(p.id));
@@ -127,7 +130,7 @@ const TeamView = ({ project, allPeople, allGroups, onUpdate }) => {
             projectId: project.id,
             personId: selectedPerson
         });
-        setSelectedPerson('');
+        setSelectedPerson(''); // Reset dropdown
     };
 
     const handleRemovePerson = (personId) => {
@@ -145,7 +148,7 @@ const TeamView = ({ project, allPeople, allGroups, onUpdate }) => {
             projectId: project.id,
             groupId: selectedGroup
         });
-        setSelectedGroup('');
+        setSelectedGroup(''); // Reset dropdown
     };
 
     return (
@@ -239,6 +242,7 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople, allGroups })
     const [isEnriching, setIsEnriching] = useState(false);
 
     useEffect(() => {
+        // This makes sure the tasks in the hub are always up-to-date with the main app state
         setTasks(project.tasks || []);
         setAiInsights(''); // Clear insights when project changes
         setIsEnriching(false);

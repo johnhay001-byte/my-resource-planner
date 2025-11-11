@@ -142,7 +142,7 @@ export default function App() {
                 
                 // --- Triage / ProjectHub Actions ---
                 case 'OPEN_PROJECT':
-                    // Find the most up-to-date version of the project
+                    // Find the most up-to-date version of the project from state
                     const liveProject = projects.find(p => p.id === action.project.id);
                     setSelectedProject(liveProject || action.project);
                     setIsSaving(false);
@@ -182,7 +182,7 @@ export default function App() {
                 case 'SAVE_PERSON':
                     if (action.person.id) { 
                         const personRef = doc(db, "people", action.person.id);
-                        await setDoc(personRef, personRef, action.person, { merge: true }); 
+                        await setDoc(personRef, action.person, { merge: true }); 
                     } else { 
                         await addDoc(collection(db, "people"), action.person);
                     }
@@ -269,6 +269,13 @@ export default function App() {
                         team: arrayUnion(action.personId)
                     });
                     setNotification({ message: 'Team member added.', type: 'success' });
+                    // Update selectedProject state to reflect new team
+                    if (selectedProject && selectedProject.id === action.projectId) {
+                        setSelectedProject(prev => ({
+                            ...prev,
+                            team: [...(prev.team || []), action.personId]
+                        }));
+                    }
                     break;
                 case 'REMOVE_TEAM_MEMBER':
                     const projectRef_remove = doc(db, "projects", action.projectId);
@@ -276,6 +283,13 @@ export default function App() {
                         team: arrayRemove(action.personId)
                     });
                     setNotification({ message: 'Team member removed.', type: 'success' });
+                    // Update selectedProject state to reflect new team
+                    if (selectedProject && selectedProject.id === action.projectId) {
+                        setSelectedProject(prev => ({
+                            ...prev,
+                            team: (prev.team || []).filter(id => id !== action.personId)
+                        }));
+                    }
                     break;
                 case 'ASSIGN_GROUP_TO_PROJECT':
                     const groupToAssign = groups.find(g => g.id === action.groupId);
@@ -285,6 +299,11 @@ export default function App() {
                             team: arrayUnion(...groupToAssign.members) // Add all members from group
                         });
                         setNotification({ message: `Group "${groupToAssign.name}" assigned to project.`, type: 'success' });
+                        // Update selectedProject state to reflect new team
+                        if (selectedProject && selectedProject.id === action.projectId) {
+                            const newTeam = Array.from(new Set([...(selectedProject.team || []), ...groupToAssign.members]));
+                            setSelectedProject(prev => ({ ...prev, team: newTeam }));
+                        }
                     }
                     break;
 
@@ -495,7 +514,7 @@ export default function App() {
                 
                 {selectedProject && (
                     <ProjectHub
-                        project={projects.find(p => p.id === selectedProject.id) || selectedProject} // Use live data
+                        project={projects.find(p => p.id === selectedProject.id) || selectedProject} // Use live data from state
                         onClose={() => setSelectedProject(null)}
                         onUpdate={handleUpdate}
                         allPeople={people}
