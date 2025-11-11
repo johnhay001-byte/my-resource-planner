@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
-// --- Date Helper Functions (copied from ResourceTimeline) ---
+// --- Date Helper Functions ---
 const parseDate = (dateString) => new Date(dateString + 'T00:00:00');
 
 const diffInDays = (dateA, dateB) => {
@@ -13,101 +13,194 @@ const addDays = (date, days) => {
     return newDate;
 };
 
-// --- Main Global Timeline Component ---
-// ▼▼▼ ADD onUpdate PROP ▼▼▼
-export const GlobalResourceView = ({ allPeople, allTasks, onUpdate }) => {
+// --- New Date Helpers for Week/Month ---
+const getStartOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    return new Date(d.setDate(diff));
+};
 
-    const { minDate, maxDate, totalDuration, dateArray } = useMemo(() => {
-        if (!allTasks || allTasks.length === 0) {
-            const today = new Date();
-            const weekAgo = addDays(today, -7);
-            const inTwoWeeks = addDays(today, 14);
-            const totalDuration = diffInDays(weekAgo, inTwoWeeks) + 1;
-            const dateArray = [];
-             for (let i = 0; i < totalDuration; i++) {
-                dateArray.push(addDays(weekAgo, i));
-            }
-            return { minDate: weekAgo, maxDate: inTwoWeeks, totalDuration, dateArray };
+const getStartOfMonth = (date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+};
+
+const addMonths = (date, months) => {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + months);
+    return d;
+};
+
+const addWeeks = (date, weeks) => {
+    return addDays(date, weeks * 7);
+};
+
+// --- Formatter for Header ---
+const formatHeader = (date, granularity) => {
+    if (granularity === 'day') {
+        return (
+            <>
+                <div className="text-xs font-medium text-gray-500">{date.toLocaleDateString('en-US', { month: 'short' })}</div>
+                <div className="text-sm font-bold text-gray-800">{date.getDate()}</div>
+            </>
+        );
+    }
+    if (granularity === 'week') {
+        const endDate = addDays(date, 6);
+        return (
+            <>
+                <div className="text-xs font-medium text-gray-500">{date.toLocaleDateString('en-US', { month: 'short' })}</div>
+                <div className="text-sm font-bold text-gray-800">{date.getDate()} - {endDate.getDate()}</div>
+            </>
+        );
+    }
+    if (granularity === 'month') {
+        return (
+            <div className="text-sm font-bold text-gray-800 pt-2">{date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</div>
+        );
+    }
+};
+
+// --- Timeline Calculation Hook ---
+const useTimeline = (tasks, granularity) => {
+    return useMemo(() => {
+        if (!tasks || tasks.length === 0) {
+            // Default view if no tasks
+            const minDate = getStartOfWeek(addDays(new Date(), -7));
+            const maxDate = getStartOfWeek(addDays(new Date(), 28));
+            return { minDate, maxDate, dateArray: [], totalDuration: 35 };
         }
 
-        // Find the entire date range of all tasks in the system
-        const startDates = allTasks.map(t => parseDate(t.startDate));
-        const endDates = allTasks.map(t => parseDate(t.endDate));
-        const minDate = new Date(Math.min(...startDates));
-        const maxDate = new Date(Math.max(...endDates));
-        
-        const totalDuration = diffInDays(minDate, maxDate) + 1;
+        const startDates = tasks.map(t => parseDate(t.startDate));
+        const endDates = tasks.map(t => parseDate(t.endDate));
+        let minDate = new Date(Math.min(...startDates));
+        let maxDate = new Date(Math.max(...endDates));
 
-        const dateArray = [];
+        let dateArray = [];
+        let totalDuration = 0;
+        let getUnit, addUnit;
+
+        if (granularity === 'day') {
+            minDate = addDays(minDate, -2); // Add padding
+            maxDate = addDays(maxDate, 2); // Add padding
+            totalDuration = diffInDays(minDate, maxDate) + 1;
+            getUnit = (date) => date;
+            addUnit = (date, i) => addDays(date, i);
+        } else if (granularity === 'week') {
+            minDate = getStartOfWeek(minDate);
+            maxDate = getStartOfWeek(maxDate);
+            totalDuration = Math.ceil(diffInDays(minDate, maxDate) / 7) + 1;
+            getUnit = (date) => getStartOfWeek(date);
+            addUnit = (date, i) => addWeeks(date, i);
+        } else { // month
+            minDate = getStartOfMonth(minDate);
+            maxDate = getStartOfMonth(maxDate);
+            totalDuration = (maxDate.getFullYear() - minDate.getFullYear()) * 12 + (maxDate.getMonth() - minDate.getMonth()) + 1;
+            getUnit = (date) => getStartOfMonth(date);
+            addUnit = (date, i) => addMonths(date, i);
+        }
+
         for (let i = 0; i < totalDuration; i++) {
-            dateArray.push(addDays(minDate, i));
+            dateArray.push(addUnit(minDate, i));
         }
         
-        return { minDate, maxDate, totalDuration, dateArray };
+        // Use the end of the last unit as the maxDate for calculation
+        const realMaxDate = addUnit(minDate, totalDuration);
 
-    }, [allTasks]);
+        return { minDate, maxDate: realMaxDate, dateArray, totalDuration, getUnit };
 
-    // We show all people, regardless of task assignment
+    }, [tasks, granularity]);
+};
+
+// --- Main Global Timeline Component ---
+export const GlobalResourceView = ({ allPeople, allTasks, onUpdate }) => {
+    const [granularity, setGranularity] = useState('day'); // 'day', 'week', 'month'
+    const { minDate, maxDate, dateArray, totalDuration, getUnit } = useTimeline(allTasks, granularity);
+
+    const getPosition = (taskStart, taskEnd) => {
+        const unitWidth = granularity === 'day' ? 40 : (granularity === 'week' ? 100 : 200);
+        let diffFn;
+
+        if (granularity === 'day') {
+            diffFn = (a, b) => diffInDays(a, b);
+        } else if (granularity === 'week') {
+            diffFn = (a, b) => diffInDays(a, b) / 7;
+        } else { // month
+            diffFn = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+        }
+
+        const start = getUnit(parseDate(taskStart));
+        const end = getUnit(parseDate(taskEnd));
+        
+        const left = Math.max(0, diffFn(minDate, start)) * unitWidth;
+        const width = Math.max(1, diffFn(start, addDays(parseDate(taskEnd), 1))) * unitWidth - 4; // +1 to include end day, -4 padding
+
+        return { left, width };
+    };
+    
+    const unitWidth = granularity === 'day' ? 40 : (granularity === 'week' ? 100 : 200);
+    const totalWidth = totalDuration * unitWidth;
+
     const sortedPeople = useMemo(() => {
         return [...allPeople].sort((a, b) => a.name.localeCompare(b.name));
     }, [allPeople]);
 
     return (
-        <div className="w-full overflow-x-auto p-4 bg-white rounded-lg border shadow-md">
-            <div style={{ minWidth: `${totalDuration * 40}px` }}> {/* 40px per day */}
-                
-                {/* --- Timeline Header (Dates) --- */}
-                <div className="flex sticky top-0 bg-gray-100 z-10 border-b-2 border-gray-300">
-                    <div className="w-48 flex-shrink-0 p-2 font-semibold text-gray-700 border-r">Team Member</div>
-                    {dateArray.map(date => (
-                        <div key={date.toISOString()} className="w-10 flex-shrink-0 text-center border-r">
-                            <div className="text-xs font-medium text-gray-500">{date.toLocaleDateString('en-US', { month: 'short' })}</div>
-                            <div className="text-sm font-bold text-gray-800">{date.getDate()}</div>
-                        </div>
-                    ))}
+        <div className="w-full bg-white rounded-lg border shadow-md">
+            {/* --- Toggle Header --- */}
+            <div className="p-2 flex justify-end">
+                <div className="flex items-center space-x-1 p-1 bg-gray-200 rounded-lg">
+                    <button onClick={() => setGranularity('day')} className={`px-3 py-1 text-sm font-semibold rounded-md ${granularity === 'day' ? 'bg-white text-purple-700 shadow' : 'text-gray-600'}`}>Day</button>
+                    <button onClick={() => setGranularity('week')} className={`px-3 py-1 text-sm font-semibold rounded-md ${granularity === 'week' ? 'bg-white text-purple-700 shadow' : 'text-gray-600'}`}>Week</button>
+                    <button onClick={() => setGranularity('month')} className={`px-3 py-1 text-sm font-semibold rounded-md ${granularity === 'month' ? 'bg-white text-purple-700 shadow' : 'text-gray-600'}`}>Month</button>
                 </div>
+            </div>
 
-                {/* --- Timeline Body (People & Tasks) --- */}
-                <div className="divide-y divide-gray-200">
-                    {sortedPeople.map(person => {
-                        const personTasks = allTasks.filter(t => t.assigneeId === person.id);
-                        
-                        return (
-                            <div key={person.id} className="flex">
-                                {/* Person Name Column */}
-                                <div className="w-48 flex-shrink-0 p-3 font-semibold text-gray-800 border-r sticky left-0 bg-white">
-                                    {person.name}
-                                </div>
-                                
-                                {/* Task Timeline Column */}
-                                <div className="flex-grow relative h-12 border-r" style={{ width: `${totalDuration * 40}px` }}>
-                                    {personTasks.map(task => {
-                                        const taskStart = parseDate(task.startDate);
-                                        const taskEnd = parseDate(task.endDate);
-
-                                        const left = diffInDays(minDate, taskStart) * 40; // 40px per day
-                                        const width = (diffInDays(taskStart, taskEnd) + 1) * 40 - 4; // -4 for padding
-                                        
-                                        // Ensure task width is at least 0
-                                        if (width < 0) return null;
-
-                                        return (
-                                            <div
-                                                key={task.id}
-                                                // ▼▼▼ ADD onClick AND hover effect ▼▼▼
-                                                className="absolute top-2 h-8 bg-purple-600 text-white rounded shadow-sm flex items-center px-2 cursor-pointer hover:bg-purple-800 transition-colors"
-                                                style={{ left: `${left}px`, width: `${width}px` }}
-                                                title={`${task.name} (${taskStart.toLocaleDateString()} - ${taskEnd.toLocaleDateString()})`}
-                                                onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })}
-                                            >
-                                                <p className="text-xs font-semibold whitespace-nowrap overflow-hidden overflow-ellipsis">{task.name}</p>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+            {/* --- Timeline --- */}
+            <div className="w-full overflow-x-auto p-4">
+                <div style={{ minWidth: `${totalWidth}px` }}>
+                    {/* --- Timeline Header (Dates) --- */}
+                    <div className="flex sticky top-0 bg-gray-100 z-10 border-b-2 border-gray-300">
+                        <div className="w-48 flex-shrink-0 p-2 font-semibold text-gray-700 border-r">Team Member</div>
+                        {dateArray.map(date => (
+                            <div key={date.toISOString()} className="flex-shrink-0 text-center border-r" style={{ width: `${unitWidth}px` }}>
+                                {formatHeader(date, granularity)}
                             </div>
-                        );
-                    })}
+                        ))}
+                    </div>
+
+                    {/* --- Timeline Body (People & Tasks) --- */}
+                    <div className="divide-y divide-gray-200">
+                        {sortedPeople.map(person => {
+                            const personTasks = allTasks.filter(t => t.assigneeId === person.id);
+                            
+                            return (
+                                <div key={person.id} className="flex">
+                                    <div className="w-48 flex-shrink-0 p-3 font-semibold text-gray-800 border-r sticky left-0 bg-white">
+                                        {person.name}
+                                    </div>
+                                    <div className="flex-grow relative h-12 border-r" style={{ width: `${totalWidth}px` }}>
+                                        {personTasks.map(task => {
+                                            const { left, width } = getPosition(task.startDate, task.endDate);
+                                            if (width < 0) return null;
+
+                                            return (
+                                                <div
+                                                    key={task.id}
+                                                    className="absolute top-2 h-8 bg-purple-600 text-white rounded shadow-sm flex items-center px-2 cursor-pointer hover:bg-purple-800 transition-colors"
+                                                    style={{ left: `${left}px`, width: `${width}px` }}
+                                                    title={`${task.name} (${parseDate(task.startDate).toLocaleDateString()} - ${parseDate(task.endDate).toLocaleDateString()})`}
+                                                    onClick={() => onUpdate({ type: 'EDIT_TASK', task: task })}
+                                                >
+                                                    <p className="text-xs font-semibold whitespace-nowrap overflow-hidden overflow-ellipsis">{task.name}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </div>

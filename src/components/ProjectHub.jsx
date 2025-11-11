@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon } from './Icons';
+// ▼▼▼ Import CalendarDaysIcon ▼▼▼
+import { PlusIcon, MessageSquareIcon, SparklesIcon, CheckCircleIcon, SpinnerIcon, CalendarDaysIcon } from './Icons';
 import { GanttView } from './GanttView';
 import { ResourceTimeline } from './ResourceTimeline';
 
@@ -120,7 +121,6 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
         const userQuery = `Project Brief: """${project.brief}"""`;
         const apiKey = ""; // Leave empty
         
-        // ▼▼▼ THIS IS THE FIX ▼▼▼
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         // ▲▲▲ (Removed typo 'generativelangugae') ▲▲▲
 
@@ -231,7 +231,10 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
                         <button onClick={() => setView('list')} className={`px-4 py-2 font-semibold ${view === 'list' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>List</button>
                         <button onClick={() => setView('board')} className={`px-4 py-2 font-semibold ${view === 'board' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Board</button>
                         <button onClick={() => setView('gantt')} className={`px-4 py-2 font-semibold ${view === 'gantt' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Gantt</button>
-                        <button onClick={() => setView('resources')} className={`px-4 py-2 font-semibold ${view === 'resources' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>Resources</button>
+                        {/* ▼▼▼ ICON ADDED HERE ▼▼▼ */}
+                        <button onClick={() => setView('resources')} className={`px-4 py-2 font-semibold flex items-center ${view === 'resources' ? 'border-b-2 border-purple-600 text-purple-700' : 'text-gray-500'}`}>
+                           <CalendarDaysIcon className="h-5 w-5 mr-2" /> Resources
+                        </button>
                     </div>
                 </div>
 

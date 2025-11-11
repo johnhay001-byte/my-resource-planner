@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon, UsersIcon, SearchIcon, ListTreeIcon, BriefcaseIcon } from './Icons';
+// ▼▼▼ Import CalendarDaysIcon, remove BriefcaseIcon ▼▼▼
+import { ArrowUpDownIcon, TrashIcon, EditIcon, PlusIcon, UsersIcon, SearchIcon, ListTreeIcon, CalendarDaysIcon } from './Icons';
 import { GlobalResourceView } from './GlobalResourceView';
-import { GroupsView } from './GroupsView'; // Import the new GroupsView
+import { GroupsView } from './GroupsView'; 
 
 const formatCurrency = (value) => {
     if (typeof value !== 'number') return '$0';
@@ -15,7 +16,7 @@ const getWeekRange = () => {
     return { start: startOfWeek, end: endOfWeek };
 };
 
-export const TeamManagementView = ({ people, tasks, groups, onUpdate, onPersonSelect }) => { // Add 'groups' to props
+export const TeamManagementView = ({ people, tasks, groups, onUpdate, onPersonSelect }) => { 
     const [view, setView] = useState('list'); // 'list', 'timeline', or 'groups'
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
     const [searchTerm, setSearchTerm] = useState('');
@@ -137,10 +138,10 @@ export const TeamManagementView = ({ people, tasks, groups, onUpdate, onPersonSe
                     <button onClick={() => setView('list')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'list' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
                         <ListTreeIcon className="h-5 w-5 mr-2" /> List View
                     </button>
+                    {/* ▼▼▼ ICON REPLACED HERE ▼▼▼ */}
                     <button onClick={() => setView('timeline')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'timeline' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
-                        <BriefcaseIcon className="h-5 w-5 mr-2" /> Timeline View
+                        <CalendarDaysIcon className="h-5 w-5 mr-2" /> Timeline View
                     </button>
-                    {/* ▼▼▼ ADD THIS NEW BUTTON ▼▼▼ */}
                     <button onClick={() => setView('groups')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${view === 'groups' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
                         <UsersIcon className="h-5 w-5 mr-2" /> Groups
                     </button>
