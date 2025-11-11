@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import { SpinnerIcon, SparklesIcon } from './Icons';
 
-export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, groups, allPeople, isSaving }) => { // Add groups & allPeople
+export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, isSaving }) => {
     const [itemType, setItemType] = useState('Project Request');
     
     // Form state
     const [name, setName] = useState('');
     const [brief, setBrief] = useState('');
     const [parentId, setParentId] = useState('');
-    const [assigneeId, setAssigneeId] = useState(null); // New state for task assignee
-    const [assigneeType, setAssigneeType] = useState('person'); // New state for task assignee type
     
-    // AI State
+    // AI State (also used for errors)
     const [aiInsights, setAiInsights] = useState('');
     const [isEnriching, setIsEnriching] = useState(false);
 
@@ -21,8 +19,6 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
         setName('');
         setBrief('');
         setParentId('');
-        setAssigneeId(null);
-        setAssigneeType('person');
         setAiInsights('');
         setIsEnriching(false);
     };
@@ -35,21 +31,52 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
     const handleSave = () => {
         let actionType = '';
         let item = {};
+        setAiInsights(''); // Clear old errors/insights
         
         switch(itemType) {
             case 'Client':
+                if (!name) {
+                    setAiInsights('<p class="text-red-600">Client Name is required.</p>');
+                    return;
+                }
                 actionType = 'ADD_CLIENT';
                 item = { name };
                 break;
             case 'Program':
+                if (!parentId) {
+                    setAiInsights('<p class="text-red-600">A Parent Client must be selected.</p>');
+                    return;
+                }
+                if (!name) {
+                    setAiInsights('<p class="text-red-600">Program Name is required.</p>');
+                    return;
+                }
                 actionType = 'ADD_PROGRAM';
                 item = { name, clientId: parentId };
                 break;
             case 'Project Request':
+                if (!parentId) {
+                    setAiInsights('<p class="text-red-600">A Parent Program must be selected.</p>');
+                    return;
+                }
+                if (!name) {
+                    setAiInsights('<p class="text-red-600">Project Name is required.</p>');
+                    return;
+                }
                 actionType = 'ADD_PROJECT';
                 item = { name, programId: parentId, brief };
                 break;
             case 'Task':
+                // ▼▼▼ THIS IS THE FIX ▼▼▼
+                if (!parentId) {
+                    setAiInsights('<p class="text-red-600">A Parent Project must be selected.</p>');
+                    return; // Stop the save
+                }
+                // ▲▲▲ END OF FIX ▲▲▲
+                if (!name) {
+                    setAiInsights('<p class="text-red-600">Task Name is required.</p>');
+                    return;
+                }
                 actionType = 'ADD_TASK_FROM_GLOBAL';
                 item = { 
                     name, 
@@ -58,8 +85,8 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                     status: 'To Do',
                     startDate: new Date().toISOString().split('T')[0],
                     endDate: new Date().toISOString().split('T')[0],
-                    assigneeId: assigneeId,
-                    assigneeType: assigneeType, // Add assignee type
+                    assigneeId: null,
+                    assigneeGroupId: null,
                 };
                 break;
             default:
@@ -67,20 +94,11 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
         }
         
         onSave({ type: actionType, item });
-        // Don't reset form here, App.jsx will close the modal on success
     };
 
     const handleItemTypeChange = (e) => {
         setItemType(e.target.value);
         resetForm();
-    };
-
-    const handleAssigneeChange = (e) => {
-        const selectedValue = e.target.value;
-        const selectedOption = e.target.options[e.target.selectedIndex];
-        
-        setAssigneeId(selectedValue || null);
-        setAssigneeType(selectedValue ? selectedOption.getAttribute('data-type') : 'person');
     };
 
     // --- AI Enrichment Function ---
@@ -96,7 +114,6 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
         const userQuery = `Project Brief: """${brief}"""`;
         const apiKey = ""; // Leave empty
         
-        // ▼▼▼ THIS IS THE FIX ▼▼▼
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
         try {
@@ -172,10 +189,10 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                                 {isEnriching ? '' : 'Enrich'}
                             </button>
                         </div>
-                         {/* AI Insights Section */}
+                         {/* AI Insights / Error Section */}
                         {aiInsights && (
                             <div 
-                                className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg max-h-40 overflow-y-auto"
+                                className={`mt-4 p-4 border rounded-lg max-h-40 overflow-y-auto ${aiInsights.includes('text-red-600') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'}`}
                                 dangerouslySetInnerHTML={{ __html: aiInsights }} 
                             />
                         )}
@@ -202,24 +219,6 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                         </select>
                         <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Task Name" className="w-full p-2 border rounded-md" />
                         <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Task Brief/Notes..." className="w-full p-2 border rounded-md" rows="3"></textarea>
-                        
-                        {/* ▼▼▼ ADDED ASSIGNEE DROPDOWN ▼▼▼ */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Assignee</label>
-                            <select 
-                                value={assigneeId || ''} 
-                                onChange={handleAssigneeChange} 
-                                className="w-full p-2 border rounded-md bg-gray-50"
-                            >
-                                <option value="" data-type="person">Unassigned</option>
-                                <optgroup label="Groups">
-                                    {groups.map(g => <option key={g.id} value={g.id} data-type="group">{g.name}</option>)}
-                                </optgroup>
-                                <optgroup label="People">
-                                    {allPeople.map(p => <option key={p.id} value={p.id} data-type="person">{p.name}</option>)}
-                                </optgroup>
-                            </select>
-                        </div>
                     </>
                 );
             default:
@@ -242,6 +241,15 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
                     {renderDynamicFields()}
                     
                 </div>
+                
+                {/* AI Insights / Error Section for non-project types (or if brief isn't visible) */}
+                {aiInsights && itemType !== 'Project Request' && (
+                    <div 
+                        className={`mt-4 p-4 border rounded-lg max-h-40 overflow-y-auto ${aiInsights.includes('text-red-600') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'}`}
+                        dangerouslySetInnerHTML={{ __html: aiInsights }} 
+                    />
+                )}
+
                 <div className="mt-8 flex justify-end gap-4">
                     <button onClick={handleClose} disabled={isSaving} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Cancel</button>
                     <button 
