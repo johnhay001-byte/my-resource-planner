@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SpinnerIcon, SparklesIcon } from './Icons';
 
-export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSaving }) => {
+export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, isSaving }) => {
     const [itemType, setItemType] = useState('Project Request');
     
     // Form state
@@ -82,7 +82,10 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSav
         const systemPrompt = "You are a senior creative agency producer. Analyze the following project brief and provide 3 key risks, 3 creative opportunities, and a list of recommended team roles (e.g., Creative Director, Sr. Copywriter, Project Manager). Format your response in clean HTML with <h3> tags for headers and <ul>/<li> for lists.";
         const userQuery = `Project Brief: """${brief}"""`;
         const apiKey = ""; // Leave empty
-        const apiUrl = `https://generativelangugae.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        
+        // ▼▼▼ THIS IS THE FIX ▼▼▼
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // ▲▲▲ (Removed typo 'generativelangugae') ▲▲▲
 
         try {
             const response = await fetch(apiUrl, {
@@ -176,9 +179,13 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, isSav
                     <>
                         <select value={parentId} onChange={(e) => setParentId(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
                             <option value="">Select Parent Project...</option>
-                            {programs.map(p => {
-                                const clientName = clients.find(c => c.id === p.clientId)?.name || 'Unknown';
-                                return <option key={p.id} value={p.id}>{clientName} / {p.name}</option>
+                            {/* Filter for active projects only */}
+                            {projects.filter(p => p.status !== 'Pending').map(p => {
+                                const program = programs.find(prog => prog.id === p.programId);
+                                const client = program ? clients.find(c => c.id === program.clientId) : null;
+                                const clientName = client ? client.name : 'Unknown';
+                                const programName = program ? program.name : 'Unknown';
+                                return <option key={p.id} value={p.id}>{clientName} / {programName} / {p.name}</option>
                             })}
                         </select>
                         <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Task Name" className="w-full p-2 border rounded-md" />

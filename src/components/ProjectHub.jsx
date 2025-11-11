@@ -119,7 +119,10 @@ export const ProjectHub = ({ project, onClose, onUpdate, allPeople }) => {
         const systemPrompt = "You are a senior creative agency producer. Analyze the following project brief and provide 3 key risks, 3 creative opportunities, and a list of recommended team roles (e.g., Creative Director, Sr. Copywriter, Project Manager). Format your response in clean HTML with <h3> tags for headers and <ul>/<li> for lists.";
         const userQuery = `Project Brief: """${project.brief}"""`;
         const apiKey = ""; // Leave empty
-        const apiUrl = `https://generativelangugae.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        
+        // ▼▼▼ THIS IS THE FIX ▼▼▼
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // ▲▲▲ (Removed typo 'generativelangugae') ▲▲▲
 
         try {
             const response = await fetch(apiUrl, {
