@@ -1,17 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon, SearchIcon, CheckCircleIcon } from './Icons'; // Add CheckCircleIcon
+import { PlusIcon, MessageSquareIcon, EditIcon, BriefcaseIcon, UserCheckIcon, SearchIcon, CheckCircleIcon } from './Icons';
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(dateString + 'T00:00:00').toLocaleString('en-US', { month: 'short', day: 'numeric' });
 };
 
 // --- MAIN WORK HUB COMPONENT ---
 export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdate, currentUser }) => {
-    const [hubView, setHubView] = useState('triage'); 
+    const [hubView, setHubView] = useState('triage'); // 'triage', 'allProjects', or 'myTasks'
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    
+
     const currentUserProfile = useMemo(() => {
         if (!currentUser) return null;
         return allPeople.find(p => p.email === currentUser.email);
@@ -30,25 +30,32 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
         return filtered;
     }, [tasks, currentUserProfile, searchTerm, statusFilter]);
     
-    //  NEW: Filter for 'Pending' projects 
-    const pendingProjects = useMemo(() => {
-        return projects.filter(p => p.status === 'Pending');
-    }, [projects]);
-    
     const projectsWithTasks = useMemo(() => {
-        // Filter out 'Pending' projects from the main list 
-        return projects
-            .filter(p => p.status !== 'Pending') 
-            .map(project => ({
-                ...project,
-                tasks: tasks.filter(t => t.projectId === project.id)
-            }));
+        return projects.map(project => ({
+            ...project,
+            tasks: tasks.filter(t => t.projectId === project.id)
+        }));
     }, [projects, tasks]);
+
+    // Split projects by status
+    const { pendingProjects, activeProjects } = useMemo(() => {
+        const pending = [];
+        const active = [];
+        projectsWithTasks.forEach(p => {
+            if (p.status === 'Pending') {
+                pending.push(p);
+            } else {
+                active.push(p);
+            }
+        });
+        return { pendingProjects: pending, activeProjects: active };
+    }, [projectsWithTasks]);
+
 
     const displayedProjects = useMemo(() => {
         const lowercasedSearchTerm = searchTerm.toLowerCase();
 
-        const projectsWithFilteredTasks = projectsWithTasks.map(project => ({
+        const projectsWithFilteredTasks = activeProjects.map(project => ({
             ...project,
             tasks: project.tasks.filter(task => {
                 const searchMatch = !searchTerm || task.name.toLowerCase().includes(lowercasedSearchTerm);
@@ -61,9 +68,29 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
             const projectNameMatch = !searchTerm || project.name.toLowerCase().includes(lowercasedSearchTerm);
             return projectNameMatch || project.tasks.length > 0;
         });
-    }, [projectsWithTasks, searchTerm, statusFilter]);
+    }, [activeProjects, searchTerm, statusFilter]);
 
-    // --- RENDER FUNCTIONS ---
+    // --- RENDER FUNCTIONS FOR TABS ---
+
+    const renderTriageQueue = () => (
+        <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-bold mb-4">Project Triage Queue</h3>
+            <p className="text-gray-600 mb-6">Review and approve new project requests submitted by the team.</p>
+            <div className="space-y-3">
+                {pendingProjects.length > 0 ? (
+                    pendingProjects.map(project => (
+                        <TriageItem 
+                            key={project.id} 
+                            project={project} 
+                            onUpdate={onUpdate} 
+                        />
+                    ))
+                ) : (
+                    <p className="text-center text-gray-500 py-10">The triage queue is empty.</p>
+                )}
+            </div>
+        </div>
+    );
 
     const renderAllProjects = () => (
         <div className="space-y-6">
@@ -90,63 +117,48 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
         </div>
     );
 
-    // NEW: Render function for Triage Queue
-    const renderTriageQueue = () => (
-        <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-xl font-bold mb-4">Project Triage Queue</h3>
-            <div className="space-y-3">
-                {pendingProjects.length > 0 ? (
-                    pendingProjects.map(project => (
-                        <TriageItem 
-                            key={project.id} 
-                            project={project} 
-                            onUpdate={onUpdate}
-                            onOpenProject={() => onUpdate({ type: 'OPEN_PROJECT', project: project })}
-                        />
-                    ))
-                ) : (
-                    <p className="text-center text-gray-500 py-10">
-                        No projects are pending review.
-                    </p>
-                )}
-            </div>
-        </div>
-    );
+    const renderCurrentView = () => {
+        switch(hubView) {
+            case 'triage':
+                return renderTriageQueue();
+            case 'allProjects':
+                return renderAllProjects();
+            case 'myTasks':
+                return renderMyTasks();
+            default:
+                return renderTriageQueue();
+        }
+    };
 
     return (
         <div className="p-8">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
-                <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
-                        {/* ADD TRIAGE BUTTON */}
-                        <button onClick={() => setHubView('triage')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'triage' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
-                            <CheckCircleIcon className="h-5 w-5 mr-2" /> Triage Queue
-                            {pendingProjects.length > 0 && (
-                                <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                                    {pendingProjects.length}
-                                </span>
-                            )}
-                        </button>
-                        <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
-                            <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
-                        </button>
-                        <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'text-gray-600 hover:bg-gray-300'}`}>
-                            <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
-                        </button>
-                    </div>
-                    {/* This button now only opens the TASK modal */}
-                    <button 
-                        onClick={() => onUpdate({ type: 'ADD_TASK' })} 
-                        className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700"
-                    >
-                        <PlusIcon className="h-4 w-4 mr-2" /> New Task
+            <div className="flex justify-between items-start mb-6">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Work Hub</h2>
+                    <p className="text-gray-600">A central place to view all ongoing work.</p>
+                </div>
+                 <div className="flex items-center space-x-2 p-1 bg-gray-200 rounded-lg">
+                    <button onClick={() => setHubView('triage')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'triage' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <CheckCircleIcon className="h-5 w-5 mr-2" /> Triage Queue
+                    </button>
+                    <button onClick={() => setHubView('allProjects')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'allProjects' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <BriefcaseIcon className="h-5 w-5 mr-2" /> All Projects
+                    </button>
+                    <button onClick={() => setHubView('myTasks')} className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center transition-colors ${hubView === 'myTasks' ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
+                        <UserCheckIcon className="h-5 w-5 mr-2" /> My Tasks
                     </button>
                 </div>
+                <button 
+                    onClick={() => onUpdate({ type: 'ADD_TASK' })}
+                    className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700"
+                    title="Add a new task"
+                >
+                    <PlusIcon className="h-4 w-4 mr-2" /> New Task
+                </button>
             </div>
 
-            {/* Filter and Search Controls */}
-            {hubView !== 'triage' && ( // Hide filters on Triage view
+            {/* Filter and Search Controls (Hidden on Triage) */}
+            {hubView !== 'triage' && (
                 <div className="mb-6 flex items-center gap-4">
                     <div className="relative flex-grow">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -160,8 +172,8 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                     </div>
                     <div className="flex items-center space-x-2 p-1 bg-gray-100 rounded-lg">
                         <span className="text-sm font-semibold text-gray-600 px-2">Status:</span>
-                        {['All', 'To Do', 'In Progress', 'Done'].map(status => (
-                            <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'text-transparent text-gray-600'}`}>
+                        {['All', 'To Do', 'In Progress', 'Blocked', 'Complete'].map(status => (
+                            <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1 text-sm font-semibold rounded-md ${statusFilter === status ? 'bg-white text-purple-700 shadow' : 'bg-transparent text-gray-600'}`}>
                                 {status}
                             </button>
                         ))}
@@ -169,16 +181,30 @@ export const WorkHub = ({ clients, programs, projects, tasks, allPeople, onUpdat
                 </div>
             )}
 
-            {/* UPDATE VIEW RENDERER */}
-            {hubView === 'allProjects' ? renderAllProjects() 
-             : hubView === 'myTasks' ? renderMyTasks()
-             : renderTriageQueue() 
-            }
+            {renderCurrentView()}
         </div>
     );
 };
 
-// --- PROJECT CARD COMPONENT ---
+// --- SUB-COMPONENTS ---
+
+const TriageItem = ({ project, onUpdate }) => {
+    return (
+        <div className="p-4 bg-gray-50 rounded-md border border-gray-200 flex items-center justify-between">
+            <div>
+                <p className="font-semibold text-lg">{project.name}</p>
+                <p className="text-sm text-gray-600 mt-1 truncate">{project.brief || "No brief provided."}</p>
+            </div>
+            <button 
+                onClick={() => onUpdate({ type: 'OPEN_PROJECT', project: project })}
+                className="px-4 py-2 text-sm font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700"
+            >
+                Review
+            </button>
+        </div>
+    );
+};
+
 const ProjectCard = ({ project, allPeople, onUpdate }) => {
     return (
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -193,7 +219,6 @@ const ProjectCard = ({ project, allPeople, onUpdate }) => {
     );
 };
 
-// --- TASK ITEM COMPONENT ---
 const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
@@ -205,7 +230,12 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
         setNewComment('');
     };
     
-    const statusColors = { 'To Do': 'bg-gray-200', 'In Progress': 'bg-blue-200', 'Done': 'bg-green-200' };
+    const statusColors = { 
+        'To Do': 'bg-gray-200', 
+        'In Progress': 'bg-blue-200', 
+        'Blocked': 'bg-red-200',
+        'Complete': 'bg-green-200' 
+    };
 
     return (
         <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
@@ -253,26 +283,6 @@ const TaskItem = ({ task, allPeople, onUpdate, showProject }) => {
                     </div>
                 </div>
             )}
-        </div>
-    );
-};
-
-// NEW: TRIAGE ITEM COMPONENT
-const TriageItem = ({ project, onOpenProject }) => {
-    return (
-        <div className="p-3 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="font-semibold">{project.name}</p>
-                    <p className="text-xs text-gray-500 mt-1 truncate max-w-md">{project.brief || 'No brief provided.'}</p>
-                </div>
-                <button 
-                    onClick={onOpenProject} 
-                    className="px-3 py-1.5 text-sm font-semibold rounded-md bg-purple-600 text-white hover:bg-purple-700"
-                >
-                    Review
-                </button>
-            </div>
         </div>
     );
 };
