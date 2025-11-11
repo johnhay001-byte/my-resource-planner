@@ -15,6 +15,7 @@ const formatCurrency = (value) => {
 // Helper to get the start and end of the current week (Monday to Sunday)
 const getWeekRange = () => {
     const now = new Date();
+    // Adjust to get Monday as start of week (getDay() returns 0 for Sun, 1 for Mon...)
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))); 
     startOfWeek.setHours(0, 0, 0, 0);
     const endOfWeek = new Date(startOfWeek);
