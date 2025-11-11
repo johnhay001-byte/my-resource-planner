@@ -1,3 +1,4 @@
+// Forcing a new build - v5 - Full Sync
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from './firebase'; 
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
@@ -129,6 +130,11 @@ export default function App() {
                     setIsAddItemModalOpen(false);
                     break;
                 case 'ADD_TASK_FROM_GLOBAL': 
+                    if (!action.item.projectId) {
+                         setNotification({ message: 'A Parent Project must be selected.', type: 'error' });
+                         setIsSaving(false);
+                         return;
+                    }
                     await addDoc(collection(db, "tasks"), action.item);
                     setNotification({ message: 'Task added!', type: 'success' });
                     setIsAddItemModalOpen(false);
@@ -325,23 +331,23 @@ export default function App() {
             case 'orgChart':
                 return (
                     <>
-                       <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-                       <main className="p-8">
+                        <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                        <main className="p-8">
                             <div className="space-y-4">
-                               {displayedData.map(client => (
-                                   <div key={client.id} className="bg-white p-6 rounded-lg shadow-md">
+                                {displayedData.map(client => (
+                                    <div key={client.id} className="bg-white p-6 rounded-lg shadow-md">
                                         <Node 
                                             node={client} 
                                             level={0} 
                                             onUpdate={handleUpdate} 
                                             onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))}
-                                            onProjectSelect={(project) => setSelectedProject(project)}
+                                            onProjectSelect={(project) => handleUpdate({ type: 'OPEN_PROJECT', project })}
                                         />
-                                   </div>
-                               ))}
-                               {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
+                                    </div>
+                                ))}
+                                {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
                             </div>
-                       </main>
+                        </main>
                     </>
                 );
             case 'teamManagement':
@@ -359,7 +365,7 @@ export default function App() {
                             projects={projects} 
                             tasks={tasks} 
                             allPeople={people} 
-                            groups={groups} /* ▼▼▼ Pass groups ▼▼▼ */
+                            groups={groups}
                             onUpdate={handleUpdate} 
                             currentUser={currentUser} 
                         />;
@@ -370,8 +376,8 @@ export default function App() {
             default:
                 return (
                      <>
-                       <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-                       <main className="p-8"><div className="space-y-4">{displayedData.map(client => (<div key={client.id} className="bg-white p-6 rounded-lg shadow-md"><Node node={client} level={0} onUpdate={()=>{}} onPersonSelect={()=>{}} onProjectSelect={() => {}} /></div>))}</div></main>
+                        <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+                        <main className="p-8"><div className="space-y-4">{displayedData.map(client => (<div key={client.id} className="bg-white p-6 rounded-lg shadow-md"><Node node={client} level={0} onUpdate={()=>{}} onPersonSelect={()=>{}} onProjectSelect={() => {}} /></div>))}</div></main>
                     </>
                 );
         }
@@ -420,7 +426,7 @@ export default function App() {
                     taskData={editingTask}
                     allPeople={people}
                     projects={projects} 
-                    groups={groups} /* ▼▼▼ Pass groups ▼▼▼ */
+                    groups={groups}
                     isSaving={isSaving}
                 />
                 <AddItemModal
@@ -449,7 +455,7 @@ export default function App() {
                         onClose={() => setSelectedProject(null)}
                         onUpdate={handleUpdate}
                         allPeople={people}
-                        allGroups={groups} /* ▼▼▼ Pass groups ▼▼▼ */
+                        allGroups={groups}
                     />
                 )}
             </div>
