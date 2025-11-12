@@ -1,104 +1,90 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SpinnerIcon, SparklesIcon } from './Icons';
 
 export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, projects, isSaving }) => {
     const [itemType, setItemType] = useState('Project Request');
     
-    // Form state
+    // Form state for all types
     const [name, setName] = useState('');
     const [brief, setBrief] = useState('');
-    const [parentId, setParentId] = useState('');
+    const [projectBudget, setProjectBudget] = useState(''); // ▼▼▼ NEW STATE ▼▼▼
+    const [parentClient, setParentClient] = useState('');
+    const [parentProgram, setParentProgram] = useState('');
+    const [parentProject, setParentProject] = useState('');
     
-    // AI State (also used for errors)
+    // AI State
     const [aiInsights, setAiInsights] = useState('');
     const [isEnriching, setIsEnriching] = useState(false);
+    
+    const [errorMessage, setErrorMessage] = useState('');
+
+    useEffect(() => {
+        // Reset form when modal opens
+        if (isOpen) {
+            setItemType('Project Request');
+            setName('');
+            setBrief('');
+            setProjectBudget(''); // ▼▼▼ NEW ▼▼▼ (Reset new state)
+            setParentClient('');
+            setParentProgram('');
+            setParentProject('');
+            setErrorMessage('');
+            setAiInsights('');
+            setIsEnriching(false);
+        }
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
-    const resetForm = () => {
-        setName('');
-        setBrief('');
-        setParentId('');
-        setAiInsights('');
-        setIsEnriching(false);
-    };
-
-    const handleClose = () => {
-        resetForm();
-        onClose();
-    };
-    
     const handleSave = () => {
-        let actionType = '';
-        let item = {};
-        setAiInsights(''); // Clear old errors/insights
+        setErrorMessage('');
+        let action = {};
         
-        switch(itemType) {
+        switch (itemType) {
             case 'Client':
-                if (!name) {
-                    setAiInsights('<p class="text-red-600">Client Name is required.</p>');
-                    return;
-                }
-                actionType = 'ADD_CLIENT';
-                item = { name };
+                if (!name) { setErrorMessage('Client Name is required.'); return; }
+                action = { type: 'ADD_CLIENT', item: { name } };
                 break;
             case 'Program':
-                if (!parentId) {
-                    setAiInsights('<p class="text-red-600">A Parent Client must be selected.</p>');
-                    return;
-                }
-                if (!name) {
-                    setAiInsights('<p class="text-red-600">Program Name is required.</p>');
-                    return;
-                }
-                actionType = 'ADD_PROGRAM';
-                item = { name, clientId: parentId };
+                if (!name || !parentClient) { setErrorMessage('Client and Program Name are required.'); return; }
+                action = { type: 'ADD_PROGRAM', item: { name, clientId: parentClient } };
                 break;
             case 'Project Request':
-                if (!parentId) {
-                    setAiInsights('<p class="text-red-600">A Parent Program must be selected.</p>');
-                    return;
-                }
-                if (!name) {
-                    setAiInsights('<p class="text-red-600">Project Name is required.</p>');
-                    return;
-                }
-                actionType = 'ADD_PROJECT';
-                item = { name, programId: parentId, brief };
+                if (!name || !parentProgram) { setErrorMessage('Program and Project Name are required.'); return; }
+                // ▼▼▼ NEW: Add projectBudget to the item object ▼▼▼
+                action = { 
+                    type: 'ADD_PROJECT', 
+                    item: { 
+                        name, 
+                        programId: parentProgram, 
+                        brief, 
+                        aiInsights, 
+                        projectBudget: Number(projectBudget) || 0 // Convert to number
+                    } 
+                };
                 break;
             case 'Task':
-                // ▼▼▼ THIS IS THE FIX ▼▼▼
-                if (!parentId) {
-                    setAiInsights('<p class="text-red-600">A Parent Project must be selected.</p>');
-                    return; // Stop the save
-                }
-                // ▲▲▲ END OF FIX ▲▲▲
-                if (!name) {
-                    setAiInsights('<p class="text-red-600">Task Name is required.</p>');
-                    return;
-                }
-                actionType = 'ADD_TASK_FROM_GLOBAL';
-                item = { 
-                    name, 
-                    projectId: parentId, 
-                    brief,
-                    status: 'To Do',
-                    startDate: new Date().toISOString().split('T')[0],
-                    endDate: new Date().toISOString().split('T')[0],
-                    assigneeId: null,
-                    assigneeGroupId: null,
+                 if (!name || !parentProject) { setErrorMessage('Project and Task Name are required.'); return; }
+                 action = {
+                    type: 'ADD_TASK_FROM_GLOBAL', 
+                    item: { 
+                        name, 
+                        projectId: parentProject,
+                        status: 'To Do',
+                        assigneeId: null,
+                        assigneeGroupId: null,
+                        startDate: new Date().toISOString().split('T')[0],
+                        endDate: new Date().toISOString().split('T')[0],
+                        comments: []
+                    } 
                 };
                 break;
             default:
+                setErrorMessage('Invalid item type selected.');
                 return;
         }
         
-        onSave({ type: actionType, item });
-    };
-
-    const handleItemTypeChange = (e) => {
-        setItemType(e.target.value);
-        resetForm();
+        onSave(action);
     };
 
     // --- AI Enrichment Function ---
@@ -127,6 +113,8 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
             });
 
             if (!response.ok) {
+                const errorBody = await response.json();
+                console.error("API Error Response:", errorBody);
                 throw new Error(`API error! status: ${response.status}`);
             }
 
@@ -145,80 +133,85 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
             setIsEnriching(false);
         }
     };
-
-    // --- Dynamic Fields ---
-    const renderDynamicFields = () => {
-        switch(itemType) {
+    
+    // --- Dynamic Form Rendering ---
+    const renderFormFields = () => {
+        switch (itemType) {
             case 'Client':
                 return (
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Client Name" className="w-full p-2 border rounded-md" />
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="New Client Name" className="w-full p-2 border rounded-md" />
                 );
             case 'Program':
                 return (
                     <>
-                        <select value={parentId} onChange={(e) => setParentId(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
+                        <select value={parentClient} onChange={(e) => setParentClient(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
                             <option value="">Select Parent Client...</option>
                             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Program Name" className="w-full p-2 border rounded-md" />
+                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="New Program Name" className="w-full p-2 border rounded-md" />
                     </>
                 );
             case 'Project Request':
                 return (
                     <>
-                        <select value={parentId} onChange={(e) => setParentId(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
+                        <select value={parentProgram} onChange={(e) => setParentProgram(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
                             <option value="">Select Parent Program...</option>
                             {programs.map(p => {
                                 const clientName = clients.find(c => c.id === p.clientId)?.name || 'Unknown';
                                 return <option key={p.id} value={p.id}>{clientName} / {p.name}</option>
                             })}
                         </select>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Project Request Name" className="w-full p-2 border rounded-md" />
-                        <div className="relative">
-                            <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Project Brief..." className="w-full p-2 border rounded-md" rows="5"></textarea>
-                            <button 
-                                onClick={handleEnrichBrief}
-                                disabled={isEnriching}
-                                className="absolute top-2 right-2 px-3 py-1 text-xs font-semibold rounded-md flex items-center bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
-                            >
-                                {isEnriching ? (
-                                    <SpinnerIcon className="h-4 w-4" />
-                                ) : (
-                                    <SparklesIcon className="h-4 w-4 mr-1" />
-                                )}
-                                {isEnriching ? '' : 'Enrich'}
-                            </button>
+                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="New Project Request Name" className="w-full p-2 border rounded-md" />
+                        
+                        {/* ▼▼▼ NEW PROJECT BUDGET FIELD ▼▼▼ */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Project Budget (Estimated Value)</label>
+                            <input 
+                                type="number" 
+                                value={projectBudget} 
+                                onChange={(e) => setProjectBudget(e.target.value)} 
+                                placeholder="e.g. 50000" 
+                                className="w-full p-2 border rounded-md" 
+                            />
                         </div>
-                         {/* AI Insights / Error Section */}
+                        {/* ▲▲▲ END NEW FIELD ▲▲▲ */}
+
+                        <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Project Brief..." className="w-full p-2 border rounded-md" rows="4"></textarea>
+                        <button 
+                            type="button"
+                            onClick={handleEnrichBrief}
+                            disabled={isEnriching}
+                            className="w-full px-3 py-2 text-sm font-semibold rounded-md flex items-center justify-center bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                        >
+                            {isEnriching ? (
+                                <SpinnerIcon className="h-5 w-5" />
+                            ) : (
+                                <SparklesIcon className="h-5 w-5 mr-2" />
+                            )}
+                            {isEnriching ? 'Analyzing...' : 'Enrich Brief (AI)'}
+                        </button>
+                         {/* AI Insights Section */}
                         {aiInsights && (
                             <div 
-                                className={`mt-4 p-4 border rounded-lg max-h-40 overflow-y-auto ${aiInsights.includes('text-red-600') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'}`}
+                                className="mt-2 p-4 bg-purple-50 border border-purple-200 rounded-lg max-h-40 overflow-y-auto"
                                 dangerouslySetInnerHTML={{ __html: aiInsights }} 
                             />
                         )}
                         {isEnriching && !aiInsights && (
-                            <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg text-center">
-                                <p className="text-purple-700 text-sm">Generating AI insights...</p>
-                            </div>
+                             <div className="mt-2 p-4 bg-purple-50 border border-purple-200 rounded-lg text-center">
+                                <p className="text-purple-700">Generating AI insights, please wait...</p>
+                             </div>
                         )}
                     </>
                 );
             case 'Task':
                  return (
                     <>
-                        <select value={parentId} onChange={(e) => setParentId(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
+                        <select value={parentProject} onChange={(e) => setParentProject(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
                             <option value="">Select Parent Project...</option>
-                            {/* Filter for active projects only */}
-                            {projects.filter(p => p.status !== 'Pending').map(p => {
-                                const program = programs.find(prog => prog.id === p.programId);
-                                const client = program ? clients.find(c => c.id === program.clientId) : null;
-                                const clientName = client ? client.name : 'Unknown';
-                                const programName = program ? program.name : 'Unknown';
-                                return <option key={p.id} value={p.id}>{clientName} / {programName} / {p.name}</option>
-                            })}
+                            {projects.filter(p => p.status !== 'Pending').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Task Name" className="w-full p-2 border rounded-md" />
-                        <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Task Brief/Notes..." className="w-full p-2 border rounded-md" rows="3"></textarea>
+                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="New Task Name" className="w-full p-2 border rounded-md" />
                     </>
                 );
             default:
@@ -231,27 +224,26 @@ export const AddItemModal = ({ isOpen, onClose, onSave, clients, programs, proje
             <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-lg animate-fade-in-fast">
                 <h2 className="text-2xl font-bold mb-6">Add New Item</h2>
                 <div className="space-y-4">
-                    <select value={itemType} onChange={handleItemTypeChange} className="w-full p-2 border rounded-md bg-gray-50">
-                        <option>Project Request</option>
-                        <option>Task</option>
-                        <option>Program</option>
-                        <option>Client</option>
-                    </select>
-                    
-                    {renderDynamicFields()}
-                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Type of Item</label>
+                        <select value={itemType} onChange={(e) => setItemType(e.target.value)} className="w-full p-2 border rounded-md bg-gray-50">
+                            <option>Project Request</option>
+                            <option>Task</option>
+                            <option>Program</option>
+                            <option>Client</option>
+                        </select>
+                    </div>
+                    {renderFormFields()}
                 </div>
-                
-                {/* AI Insights / Error Section for non-project types (or if brief isn't visible) */}
-                {aiInsights && itemType !== 'Project Request' && (
-                    <div 
-                        className={`mt-4 p-4 border rounded-lg max-h-40 overflow-y-auto ${aiInsights.includes('text-red-600') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'}`}
-                        dangerouslySetInnerHTML={{ __html: aiInsights }} 
-                    />
+
+                {errorMessage && (
+                    <div className="mt-4 text-center p-3 bg-red-100 text-red-800 rounded-md text-sm">
+                        {errorMessage}
+                    </div>
                 )}
 
                 <div className="mt-8 flex justify-end gap-4">
-                    <button onClick={handleClose} disabled={isSaving} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                    <button onClick={onClose} disabled={isSaving} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Cancel</button>
                     <button 
                         onClick={handleSave} 
                         disabled={isSaving}
