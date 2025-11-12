@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { SpinnerIcon } from './Icons';
 
-export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
+export const PersonModal = ({ isOpen, onClose, onSave, personData, isSaving }) => {
     const [person, setPerson] = useState({});
-    // State to hold our validation error message
+    const [skills, setSkills] = useState(''); // State for skills as a string
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            setErrorMessage(''); // Clear any previous errors when modal opens
+            setErrorMessage(''); 
             if (personData) {
                 setPerson(personData);
+                // Convert skills array (from Firestore) to a comma-separated string for the input
+                setSkills(personData.skills ? personData.skills.join(', ') : '');
             } else {
                 // Default for a new person
                 setPerson({
@@ -21,7 +24,9 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
                     tags: [{ type: 'Team', value: 'Account Management' }, { type: 'Location', value: 'London' }],
                     totalMonthlyCost: 5000,
                     billableRatePerHour: 100,
+                    skills: [], // Default to empty array
                 });
+                setSkills(''); // Default to empty string
             }
         }
     }, [personData, isOpen]);
@@ -41,18 +46,24 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
         }));
     };
 
+    const handleSkillsChange = (e) => {
+        setSkills(e.target.value);
+    };
+
     const handleSave = () => {
-        // Validation check
         if (!person.name || !person.role || !person.email) {
-            // Set the error message instead of showing an alert
             setErrorMessage('Please fill in Name, Role, and Email before saving.');
             return;
         }
-        // If validation passes, proceed to save
-        onSave(person);
+        
+        // Convert the comma-separated string back into an array for Firestore
+        const skillsArray = skills.split(',')
+                                  .map(s => s.trim())
+                                  .filter(s => s.length > 0);
+                                  
+        onSave({ ...person, skills: skillsArray });
     };
 
-    // Helper to get the current value for a tag type
     const getTagValue = (type) => (person.tags?.find(t => t.type === type)?.value || '');
 
     return (
@@ -64,6 +75,17 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
                     <input type="email" name="email" value={person.email || ''} onChange={handleChange} placeholder="Email Address" className="w-full p-2 border rounded-md" />
                     <input type="text" name="role" value={person.role || ''} onChange={handleChange} placeholder="Business Title / Role" className="w-full p-2 border rounded-md" />
                     <input type="text" name="Team" value={getTagValue('Team')} onChange={handleTagChange} placeholder="Team / Function" className="w-full p-2 border rounded-md" />
+                    
+                    {/* --- NEW SKILLS FIELD --- */}
+                    <input 
+                        type="text" 
+                        name="skills" 
+                        value={skills} 
+                        onChange={handleSkillsChange} 
+                        placeholder="Skills (e.g. Figma, Copywriting, Strategy)" 
+                        className="w-full p-2 border rounded-md" 
+                    />
+                    
                      <select name="resourceType" value={person.resourceType || 'Full-Time'} onChange={handleChange} className="w-full p-2 border rounded-md bg-gray-50">
                         <option>Full-Time</option>
                         <option>Contractor</option>
@@ -75,7 +97,6 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
                     </div>
                 </div>
 
-                {/* Display error message here if it exists */}
                 {errorMessage && (
                     <div className="mt-4 text-center p-3 bg-red-100 text-red-800 rounded-md text-sm">
                         {errorMessage}
@@ -83,8 +104,15 @@ export const PersonModal = ({ isOpen, onClose, onSave, personData }) => {
                 )}
 
                 <div className="mt-8 flex justify-end gap-4">
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-                    <button onClick={handleSave} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">Save</button>
+                    <button onClick={onClose} disabled={isSaving} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                    <button 
+                        onClick={handleSave} 
+                        disabled={isSaving}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    >
+                        {isSaving ? <SpinnerIcon className="h-5 w-5 mr-2" /> : null}
+                        {isSaving ? 'Saving...' : 'Save'}
+                    </button>
                 </div>
             </div>
         </div>
