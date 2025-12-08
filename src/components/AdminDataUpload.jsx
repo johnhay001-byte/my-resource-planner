@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, writeBatch, doc, collection } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { SpinnerIcon } from './Icons'; // Removed UploadIcon from here
+import { writeBatch, doc, collection } from 'firebase/firestore';
+import { SpinnerIcon } from './Icons';
+// ▼▼▼ KEY FIX: Import 'db' from your existing firebase file instead of initializing a new one
+import { db } from '../firebase'; 
 
-// Initialize Firebase (using existing config from window)
-const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
 const appId = window.__app_id || 'default-app-id';
 
 // Define UploadIcon locally to avoid import errors
@@ -27,16 +22,24 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
 
     const parseCSV = (text) => {
         const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
+        // Handle CSVs with \r\n or \n
+        const headers = lines[0].trim().split(',').map(h => h.trim());
         
         const data = [];
         for (let i = 1; i < lines.length; i++) {
-            const currentLine = lines[i].split(',');
-            if (currentLine.length === headers.length) {
+            if (!lines[i].trim()) continue; // Skip empty lines
+            
+            // Simple regex to split by comma but ignore commas inside quotes
+            const currentLine = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+
+            // Fallback for simple split if regex fails or for simpler CSVs
+            const simpleSplit = lines[i].split(',');
+            const values = currentLine.length === headers.length ? currentLine : simpleSplit;
+
+            if (values.length >= headers.length) { // Allow loose matching
                 const row = {};
                 for (let j = 0; j < headers.length; j++) {
-                    // Clean quotes if present
-                    let val = currentLine[j].trim();
+                    let val = values[j] ? values[j].trim() : '';
                     if (val.startsWith('"') && val.endsWith('"')) {
                         val = val.slice(1, -1);
                     }
@@ -65,6 +68,10 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                 const text = e.target.result;
                 const data = parseCSV(text);
                 
+                if (data.length === 0) {
+                    throw new Error("No valid rows found. Check CSV headers match: Role, Region, Rate_low, etc.");
+                }
+
                 setProgress(`Parsed ${data.length} rows. Starting upload...`);
 
                 // Batch write to Firestore (limit 500 per batch)
@@ -74,8 +81,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                     chunks.push(data.slice(i, i + BATCH_SIZE));
                 }
 
-                // Use the Public Data path so everyone in the app can read rates
-                // Path: /artifacts/{appId}/public/data/cost_rates/{role_region_key}
+                // Use the Public Data path
                 const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'cost_rates');
 
                 let totalUploaded = 0;
@@ -86,14 +92,13 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
 
                     chunk.forEach((row) => {
                         // Create a unique ID for the document: Role_Region
-                        // Sanitize ID by replacing non-alphanumeric chars
                         const safeRole = row['Role'].replace(/[^a-zA-Z0-9]/g, '_');
                         const safeRegion = row['Region'].replace(/[^a-zA-Z0-9]/g, '_');
                         const docId = `${safeRole}_${safeRegion}`;
 
                         const docRef = doc(collectionRef, docId);
                         
-                        // Convert numbers
+                        // Clean numbers
                         const safeRow = {
                             ...row,
                             Rate_low: Number(row.Rate_low) || 0,
