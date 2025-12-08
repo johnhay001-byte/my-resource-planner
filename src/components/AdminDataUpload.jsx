@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { writeBatch, doc, collection, addDoc } from 'firebase/firestore'; // Added addDoc
+import { writeBatch, doc, collection, addDoc } from 'firebase/firestore'; 
 import { SpinnerIcon } from './Icons';
 import { db } from '../firebase'; 
 
@@ -28,10 +28,22 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
 
     const parseCSV = (text) => {
         const lines = text.split('\n');
-        const headers = lines[0].trim().split(',').map(h => h.trim());
+        // Find the first valid header row (skipping junk rows like '48,445...')
+        let headerIndex = 0;
+        let headers = [];
         
+        for(let i=0; i<lines.length; i++) {
+            if(lines[i].includes('Role') && lines[i].includes('Region')) {
+                headerIndex = i;
+                headers = lines[i].trim().split(',').map(h => h.trim());
+                break;
+            }
+        }
+        
+        if (headers.length === 0) return []; // No headers found
+
         const data = [];
-        for (let i = 1; i < lines.length; i++) {
+        for (let i = headerIndex + 1; i < lines.length; i++) {
             if (!lines[i].trim()) continue;
             
             // Regex to handle commas inside quotes
@@ -69,7 +81,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                 const text = e.target.result;
                 const data = parseCSV(text);
                 
-                if (data.length === 0) throw new Error("No valid rows found.");
+                if (data.length === 0) throw new Error("No valid rows found. Ensure CSV has 'Role' and 'Region' columns.");
 
                 if (mode === 'rates') {
                     await uploadRates(data);
@@ -137,6 +149,8 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
         
         const peopleRef = collection(db, 'artifacts', appId, 'public', 'data', 'people');
         
+        console.log("--- GENERATING TEST TEAM ---");
+        
         let count = 0;
         for (let i = 0; i < selected.length; i++) {
             const row = selected[i];
@@ -145,14 +159,17 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
             // Create a person object that MATCHES the rate card
             const newPerson = {
                 name: `${firstName} (${row.Region})`,
-                role: row.Role,     // Matches Rate Card
-                region: row.Region, // Matches Rate Card
+                role: row.Role,     
+                region: row.Region, 
+                client: "Internal", // <--- ADDED: Assign to a client so they show in UI
                 skills: [row['Category | Function'] || 'General'],
                 allocation: 0,
                 avatar: `https://ui-avatars.com/api/?name=${firstName}&background=random`
             };
 
-            await addDoc(peopleRef, newPerson);
+            const docRef = await addDoc(peopleRef, newPerson);
+            console.log("Created Person:", newPerson.name, docRef.id); // Log to console for verification
+            
             count++;
             setProgress(`Created ${count} of 20 test people...`);
         }
