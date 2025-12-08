@@ -512,10 +512,13 @@ export default function App() {
                     projects={projects}
                     isSaving={isSaving}
                 />
-                <AdminDataUpload 
-    isOpen={isAdminUploadOpen}
-    onClose={() => setIsAdminUploadOpen(false)}
-/>
+                {/* ▼▼▼ KEY FIX: Pass 'clients' prop here ▼▼▼ */}
+            <AdminDataUpload 
+                isOpen={isAdminUploadOpen}
+                onClose={() => setIsAdminUploadOpen(false)}
+                clients={clients} 
+            />
+
                 
                 {/* --- Detail Cards / Overlays --- */}
                 {detailedPerson && (
