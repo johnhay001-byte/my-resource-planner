@@ -1,6 +1,6 @@
-// Force Update: v2 - Client Selection Logic
+// Force Update: v3 - Accepting Clients as Prop
 import React, { useState, useEffect } from 'react';
-import { writeBatch, doc, collection, addDoc, getDocs } from 'firebase/firestore'; 
+import { writeBatch, doc, collection, addDoc } from 'firebase/firestore'; 
 import { SpinnerIcon } from './Icons';
 import { db } from '../firebase'; 
 
@@ -19,39 +19,21 @@ const UserGroupIcon = ({ className }) => (
     </svg>
 );
 
-export const AdminDataUpload = ({ isOpen, onClose }) => {
+// KEY CHANGE: Now accepting 'clients' as a prop
+export const AdminDataUpload = ({ isOpen, onClose, clients = [] }) => {
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState('');
     const [error, setError] = useState('');
-    const [mode, setMode] = useState('rates'); // 'rates' or 'team'
+    const [mode, setMode] = useState('rates'); 
     
-    // Client selection state
-    const [clients, setClients] = useState([]);
     const [selectedClientId, setSelectedClientId] = useState('');
-    const [loadingClients, setLoadingClients] = useState(false);
 
-    // Fetch clients when opening or switching to Team mode
+    // Update selected client when the list loads or changes
     useEffect(() => {
-        if (isOpen && mode === 'team') {
-            const fetchClients = async () => {
-                setLoadingClients(true);
-                try {
-                    const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'clients'));
-                    const clientList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    setClients(clientList);
-                    if (clientList.length > 0) {
-                        setSelectedClientId(clientList[0].id);
-                    }
-                } catch (err) {
-                    console.error("Error fetching clients:", err);
-                    setError("Could not load clients. Please ensure you have created at least one Client.");
-                } finally {
-                    setLoadingClients(false);
-                }
-            };
-            fetchClients();
+        if (clients.length > 0 && !selectedClientId) {
+            setSelectedClientId(clients[0].id);
         }
-    }, [isOpen, mode]);
+    }, [clients, selectedClientId]);
 
     if (!isOpen) return null;
 
@@ -187,7 +169,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                 name: `${firstName} (${row.Region})`,
                 role: row.Role,     
                 region: row.Region, 
-                client: selectedClientId, // <--- KEY FIX: Use the actual Client ID
+                client: selectedClientId, // Use the actual Client ID passed from props
                 skills: [row['Category | Function'] || 'General'],
                 allocation: 0,
                 avatar: `https://ui-avatars.com/api/?name=${firstName}&background=random`
@@ -239,9 +221,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                 {mode === 'team' && (
                     <div className="mb-6">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Client:</label>
-                        {loadingClients ? (
-                            <div className="text-sm text-gray-500">Loading clients...</div>
-                        ) : clients.length > 0 ? (
+                        {clients.length > 0 ? (
                             <select 
                                 value={selectedClientId} 
                                 onChange={(e) => setSelectedClientId(e.target.value)}
