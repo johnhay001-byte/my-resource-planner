@@ -1,551 +1,612 @@
-// Forcing a new build - v5 - Full Sync
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from './firebase'; 
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, onSnapshot, doc, deleteDoc, setDoc, addDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"; // Import arrayRemove
+import { 
+  Layout, 
+  Users, 
+  Calendar as CalendarIcon, 
+  Briefcase, 
+  Settings, 
+  Plus, 
+  Search, 
+  MoreVertical,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  BarChart3,
+  LogOut
+} from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  onAuthStateChanged, 
+  signInAnonymously, 
+  signInWithCustomToken 
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  query, 
+  onSnapshot, 
+  deleteDoc, 
+  doc, 
+  updateDoc,
+  serverTimestamp
+} from 'firebase/firestore';
 
-// Import all our components
-import { Header } from './components/Header';
-import { ClientFilter } from './components/ClientFilter';
-import { Node } from './components/Node';
-import { PersonModal } from './components/PersonModal';
-import { TeamManagementView } from './components/TeamManagementView';
-import { WorkHub } from './components/WorkHub';
-import { PersonDetailCard } from './components/PersonDetailCard';
-import { TaskModal } from './components/TaskModal';
-import { ProjectHub } from './components/ProjectHub';
-import { FinancialsDashboard } from './components/FinancialsDashboard'; 
-import { Login } from './components/Login';
-import { Notification } from './components/Notification';
-import { NetworkView } from './components/NetworkView'; 
-import { LoadingSpinner } from './components/LoadingSpinner'; 
-import { AddItemModal } from './components/AddItemModal';
-import { AdminDataUpload } from './components/AdminDataUpload';
-import './index.css';
+// --- Firebase Initialization ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// --- Components ---
+
+const LoadingScreen = () => (
+  <div className="flex items-center justify-center min-h-screen bg-slate-50">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+);
+
+const Sidebar = ({ activeTab, setActiveTab }) => {
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'planner', label: 'Resource Planner', icon: CalendarIcon },
+    { id: 'workHub', label: 'Work Hub', icon: Briefcase },
+    { id: 'resources', label: 'Team & Assets', icon: Users },
+  ];
+
+  return (
+    <div className="w-64 bg-slate-900 text-white flex flex-col h-full hidden md:flex shadow-xl">
+      <div className="p-6 border-b border-slate-700">
+        <div className="flex items-center space-x-2 font-bold text-xl tracking-tight">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <Layout className="w-5 h-5 text-white" />
+          </div>
+          <span>PlanFlow</span>
+        </div>
+      </div>
+      
+      <nav className="flex-1 py-6 px-3 space-y-1">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                activeTab === item.id 
+                  ? 'bg-blue-600 text-white shadow-md' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Icon size={20} />
+              <span className="font-medium">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-1">Storage Used</p>
+          <div className="w-full bg-slate-700 rounded-full h-2 mb-2">
+            <div className="bg-emerald-500 h-2 rounded-full w-[75%]"></div>
+          </div>
+          <p className="text-xs text-right text-slate-400">75%</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Sub-Components for Views ---
+
+const StatCard = ({ title, value, change, icon: Icon, color }) => (
+  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+    <div className="flex items-center justify-between mb-4">
+      <div className={`p-3 rounded-lg ${color} bg-opacity-10`}>
+        <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
+      </div>
+      <span className={`text-sm font-medium ${change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+        {change > 0 ? '+' : ''}{change}%
+      </span>
+    </div>
+    <h3 className="text-slate-500 text-sm font-medium">{title}</h3>
+    <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
+  </div>
+);
+
+const Dashboard = ({ tasks, resources }) => {
+  const activeTasks = tasks.filter(t => t.status === 'in-progress').length;
+  const pendingTasks = tasks.filter(t => t.status === 'pending').length;
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-slate-800">Dashboard Overview</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Total Resources" value={resources.length} change={12} icon={Users} color="bg-blue-500" />
+        <StatCard title="Active Tasks" value={activeTasks} change={5} icon={Clock} color="bg-amber-500" />
+        <StatCard title="Completed" value={completedTasks} change={24} icon={CheckCircle2} color="bg-emerald-500" />
+        <StatCard title="Pending Review" value={pendingTasks} change={-2} icon={AlertCircle} color="bg-purple-500" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Recent Activity</h3>
+          <div className="space-y-4">
+            {tasks.slice(0, 5).map(task => (
+              <div key={task.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-2 h-2 rounded-full ${
+                    task.status === 'completed' ? 'bg-emerald-500' : 
+                    task.status === 'in-progress' ? 'bg-blue-500' : 'bg-slate-300'
+                  }`} />
+                  <div>
+                    <p className="font-medium text-slate-800">{task.title}</p>
+                    <p className="text-xs text-slate-500">{new Date(task.createdAt?.seconds * 1000 || Date.now()).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium px-2 py-1 bg-slate-100 rounded-md text-slate-600">
+                  {task.status}
+                </span>
+              </div>
+            ))}
+            {tasks.length === 0 && <p className="text-slate-400 text-center py-4">No recent activity</p>}
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Team Availability</h3>
+          <div className="space-y-4">
+            {resources.slice(0, 5).map(res => (
+              <div key={res.id} className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
+                    {res.name.substring(0, 2).toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium text-slate-700">{res.name}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-24 bg-slate-100 rounded-full h-2">
+                    <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '80%' }}></div>
+                  </div>
+                  <span className="text-xs text-slate-500">80%</span>
+                </div>
+              </div>
+            ))}
+            {resources.length === 0 && <p className="text-slate-400 text-center py-4">No resources added</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) => {
+  const [filter, setFilter] = useState('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskStatus, setNewTaskStatus] = useState('pending');
+  const [newTaskResource, setNewTaskResource] = useState('');
+
+  const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+    onAddTask({
+      title: newTaskTitle,
+      status: newTaskStatus,
+      resourceId: newTaskResource,
+      createdAt: serverTimestamp(),
+    });
+    setNewTaskTitle('');
+    setIsModalOpen(false);
+  };
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'completed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'in-progress': return 'bg-blue-100 text-blue-700 border-blue-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
+  return (
+    <div className="space-y-6 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Work Hub</h2>
+          <p className="text-slate-500 text-sm">Manage and track project tasks</p>
+        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
+        >
+          <Plus size={18} />
+          <span>New Task</span>
+        </button>
+      </div>
+
+      <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+        {['all', 'pending', 'in-progress', 'completed'].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-all ${
+              filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-20">
+        {filteredTasks.map(task => (
+          <div key={task.id} className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 transition-all shadow-sm group">
+            <div className="flex justify-between items-start mb-3">
+              <span className={`px-2 py-1 rounded-md text-xs font-semibold border ${getStatusColor(task.status)}`}>
+                {task.status}
+              </span>
+              <button 
+                onClick={() => onDeleteTask(task.id)}
+                className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+            <h3 className="font-semibold text-slate-800 mb-2 truncate" title={task.title}>{task.title}</h3>
+            
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 font-bold">
+                   {resources.find(r => r.id === task.resourceId)?.name?.substring(0,2).toUpperCase() || 'NA'}
+                </div>
+                <span className="text-xs text-slate-500">
+                  {resources.find(r => r.id === task.resourceId)?.name || 'Unassigned'}
+                </span>
+              </div>
+              <select
+                value={task.status}
+                onChange={(e) => onUpdateTask(task.id, { status: e.target.value })}
+                className="text-xs border-none bg-transparent text-right font-medium text-blue-600 cursor-pointer focus:ring-0"
+              >
+                <option value="pending">Pending</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+        ))}
+        {filteredTasks.length === 0 && (
+           <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+             <Briefcase size={48} className="mb-4 opacity-50" />
+             <p>No tasks found in this view.</p>
+           </div>
+        )}
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-xl font-bold mb-4">Create New Task</h3>
+            <form onSubmit={handleAdd} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Task Title</label>
+                <input
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="Enter task description"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                    <select
+                      value={newTaskStatus}
+                      onChange={(e) => setNewTaskStatus(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Assignee</label>
+                    <select
+                      value={newTaskResource}
+                      onChange={(e) => setNewTaskResource(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="">Unassigned</option>
+                      {resources.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                 </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Create Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
+  const [newResName, setNewResName] = useState('');
+  const [newResRole, setNewResRole] = useState('Developer');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!newResName.trim()) return;
+    onAddResource({ name: newResName, role: newResRole });
+    setNewResName('');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+           <h2 className="text-2xl font-bold text-slate-800">Team & Assets</h2>
+           <p className="text-slate-500 text-sm">Manage your available resources</p>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="text-lg font-semibold mb-4">Add New Resource</h3>
+        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4">
+          <input 
+            type="text" 
+            placeholder="Name" 
+            value={newResName}
+            onChange={(e) => setNewResName(e.target.value)}
+            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          <select 
+            value={newResRole}
+            onChange={(e) => setNewResRole(e.target.value)}
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+          >
+            <option>Developer</option>
+            <option>Designer</option>
+            <option>Manager</option>
+            <option>Analyst</option>
+            <option>Equipment</option>
+          </select>
+          <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            Add Resource
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {resources.map(res => (
+              <tr key={res.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4 font-medium text-slate-800">{res.name}</td>
+                <td className="px-6 py-4 text-slate-600">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {res.role}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center">
+                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 mr-2"></div>
+                    <span className="text-sm text-slate-600">Available</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button 
+                    onClick={() => onDeleteResource(res.id)}
+                    className="text-slate-400 hover:text-red-600 transition-colors"
+                  >
+                    <LogOut size={18} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {resources.length === 0 && (
+               <tr>
+                 <td colSpan="4" className="px-6 py-8 text-center text-slate-400">
+                   No resources found. Add one above.
+                 </td>
+               </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// --- Main App Component ---
 
 export default function App() {
-    // --- App State (Data) ---
-    const [clients, setClients] = useState([]);
-    const [programs, setPrograms] = useState([]);
-    const [projects, setProjects] = useState([]);
-    const [people, setPeople] = useState([]);
-    const [tasks, setTasks] = useState([]);
-    const [groups, setGroups] = useState([]); 
-    const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [resources, setResources] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    // --- UI State ---
-    const [activeFilter, setActiveFilter] = useState('all');
-    const [viewMode, setViewMode] = useState('orgChart');
-    const [selectedProject, setSelectedProject] = useState(null); 
-    const [detailedPerson, setDetailedPerson] = useState(null);
-    const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
-    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-    const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
-    const [isAdminUploadOpen, setIsAdminUploadOpen] = useState(false);
-    const [editingPerson, setEditingPerson] = useState(null);
-    const [editingTask, setEditingTask] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
-    
-    const [notification, setNotification] = useState({ message: '', type: '' });
-
-    // --- Auth State ---
-    const [auth, setAuth] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null); 
-    const [isAuthLoading, setIsAuthLoading] = useState(true); 
-
-    // --- Auth Setup ---
-    useEffect(() => {
-        const app = db.app;
-        const authInstance = getAuth(app);
-        setAuth(authInstance); 
-
-        const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-            setCurrentUser(user); 
-            setIsAuthLoading(false); 
-            if(user) {
-                setViewMode('orgChart'); 
-                setActiveFilter('all');
-            }
-        });
-        return () => unsubscribe();
-    }, []);
-
-    // --- Data Fetching ---
-    useEffect(() => {
-        if (!currentUser) {
-            setLoading(false);
-            return; 
-        }
-        setLoading(true);
-        const unsubClients = onSnapshot(collection(db, "clients"), (snapshot) => setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
-        const unsubPrograms = onSnapshot(collection(db, "programs"), (snapshot) => setPrograms(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
-        const unsubProjects = onSnapshot(collection(db, "projects"), (snapshot) => setProjects(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
-        const unsubPeople = onSnapshot(collection(db, "people"), (snapshot) => setPeople(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))));
-        const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => setGroups(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })))); 
-        
-        const unsubTasks = onSnapshot(collection(db, "tasks"), (snapshot) => {
-            setTasks(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-            setLoading(false); 
-        });
-        return () => { unsubClients(); unsubPrograms(); unsubProjects(); unsubPeople(); unsubTasks(); unsubGroups(); }; 
-    }, [currentUser]);
-
-    // --- Notification Timer ---
-    useEffect(() => {
-        if (notification.message) {
-            const timer = setTimeout(() => {
-                setNotification({ message: '', type: '' });
-            }, 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [notification]);
-
-    // --- handleUpdate (Reducer) ---
-    const handleUpdate = async (action) => {
-        setIsSaving(true);
-        try {
-            switch (action.type) {
-                // --- Global Add Item Modal ---
-                case 'ADD_ITEM':
-                    setIsSaving(false);
-                    setIsAddItemModalOpen(true);
-                    break;
-                case 'ADD_CLIENT':
-                    await addDoc(collection(db, "clients"), action.item);
-                    setNotification({ message: 'Client added!', type: 'success' });
-                    setIsAddItemModalOpen(false);
-                    break;
-                case 'ADD_PROGRAM':
-                    await addDoc(collection(db, "programs"), action.item);
-                    setNotification({ message: 'Program added!', type: 'success' });
-                    setIsAddItemModalOpen(false);
-                    break;
-                case 'ADD_PROJECT':
-                    const newProject = { 
-                        ...action.item, 
-                        brief: action.item.brief || '',
-                        status: 'Pending', 
-                        team: [],
-                    };
-                    await addDoc(collection(db, "projects"), newProject);
-                    setNotification({ message: 'Project Request submitted!', type: 'success' });
-                    setIsAddItemModalOpen(false);
-                    break;
-                case 'ADD_TASK_FROM_GLOBAL': 
-                    if (!action.item.projectId) {
-                         setNotification({ message: 'A Parent Project must be selected.', type: 'error' });
-                         setIsSaving(false);
-                         return;
-                    }
-                    await addDoc(collection(db, "tasks"), action.item);
-                    setNotification({ message: 'Task added!', type: 'success' });
-                    setIsAddItemModalOpen(false);
-                    break;
-                
-                // --- Triage / ProjectHub Actions ---
-                case 'OPEN_PROJECT':
-                    // Find the most up-to-date version of the project from state
-                    const liveProject = projects.find(p => p.id === action.project.id);
-                    setSelectedProject(liveProject || action.project);
-                    setIsSaving(false);
-                    break;
-                case 'UPDATE_PROJECT_STATUS':
-                    const projectRef_status = doc(db, "projects", action.projectId);
-                    await updateDoc(projectRef_status, {
-                        status: action.newStatus
-                    });
-                    setNotification({ message: `Project status updated to ${action.newStatus}`, type: 'success' });
-                    // Update selectedProject state if it's the one being approved
-                    if (selectedProject && selectedProject.id === action.projectId) {
-                        setSelectedProject(prev => ({ ...prev, status: action.newStatus }));
-                    }
-                    break;
-
-                // --- Node/Org Chart Actions ---
-                case 'DELETE_NODE':
-                    const collectionName = action.nodeType === 'client' ? 'clients' : action.nodeType === 'program' ? 'programs' : 'projects';
-                    if (action.nodeType !== 'person') {
-                        await deleteDoc(doc(db, collectionName, action.id));
-                        setNotification({ message: `${action.nodeType} deleted.`, type: 'success' });
-                    }
-                    break;
-
-                // --- Person Modal ---
-                case 'ADD_PERSON':
-                    setEditingPerson(null); 
-                    setIsPersonModalOpen(true);
-                    setIsSaving(false);
-                    break;
-                case 'EDIT_PERSON':
-                    setEditingPerson(action.person); 
-                    setIsPersonModalOpen(true);
-                    setIsSaving(false);
-                    break;
-                case 'SAVE_PERSON':
-                    if (action.person.id) { 
-                        const personRef = doc(db, "people", action.person.id);
-                        await setDoc(personRef, action.person, { merge: true }); 
-                    } else { 
-                        await addDoc(collection(db, "people"), action.person);
-                    }
-                    setIsPersonModalOpen(false);
-                    setEditingPerson(null); 
-                    setNotification({ message: 'Person saved successfully!', type: 'success' });
-                    break;
-                case 'DELETE_PERSON':
-                     await deleteDoc(doc(db, "people", action.personId));
-                     setNotification({ message: 'Person deleted.', type: 'success' });
-                     break;
-                
-                // --- Task Modal ---
-                case 'ADD_TASK':
-                    if (action.task) { // From ProjectHub ListView
-                        await addDoc(collection(db, 'tasks'), action.task);
-                        setNotification({ message: 'Task added.', type: 'success' });
-                    } else { // From WorkHub "New Task" button
-                        setEditingTask(null); 
-                        setIsTaskModalOpen(true);
-                        setIsSaving(false);
-                    }
-                    break;
-                case 'EDIT_TASK':
-                    setEditingTask(action.task); 
-                    setIsTaskModalOpen(true);
-                    setIsSaving(false);
-                    break;
-                case 'SAVE_TASK':
-                    if (!action.task.projectId) {
-                         setNotification({ message: 'A project must be selected.', type: 'error' });
-                         setIsSaving(false);
-                         return;
-                    }
-                    if (action.task.id) { 
-                        const taskRef = doc(db, "tasks", action.task.id);
-                        await setDoc(taskRef, action.task, { merge: true });
-                    } else { 
-                        await addDoc(collection(db, "tasks"), action.task);
-                    }
-                    setIsTaskModalOpen(false);
-                    setEditingTask(null); 
-                    setNotification({ message: 'Task saved successfully!', type: 'success' });
-                    break;
-                case 'ADD_COMMENT':
-                    const taskRef_comment = doc(db, "tasks", action.taskId);
-                    await updateDoc(taskRef_comment, {
-                        comments: arrayUnion({ author: action.author, text: action.commentText, date: new Date().toISOString() })
-                    });
-                    setNotification({ message: 'Comment added!', type: 'success' });
-                    break;
-                
-                // --- GROUP ACTIONS (TeamManagementView) ---
-                case 'ADD_GROUP':
-                    await addDoc(collection(db, "groups"), {
-                        name: action.name,
-                        members: []
-                    });
-                    setNotification({ message: 'Group created!', type: 'success' });
-                    break;
-                case 'DELETE_GROUP':
-                    await deleteDoc(doc(db, "groups", action.groupId));
-                    setNotification({ message: 'Group deleted.', type: 'success' });
-                    break;
-                case 'ADD_PERSON_TO_GROUP':
-                    const groupAddRef = doc(db, "groups", action.groupId);
-                    await updateDoc(groupAddRef, {
-                        members: arrayUnion(action.personId)
-                    });
-                    setNotification({ message: 'Member added to group.', type: 'success' });
-                    break;
-                case 'REMOVE_PERSON_FROM_GROUP':
-                    const groupRemoveRef = doc(db, "groups", action.groupId);
-                    await updateDoc(groupRemoveRef, {
-                        members: arrayRemove(action.personId)
-                    });
-                    setNotification({ message: 'Member removed from group.', type: 'success' });
-                    break;
-
-                // --- PROJECT CASTING ACTIONS (ProjectHub) ---
-                case 'ADD_TEAM_MEMBER':
-                    const projectRef_add = doc(db, "projects", action.projectId);
-                    await updateDoc(projectRef_add, {
-                        team: arrayUnion(action.personId)
-                    });
-                    setNotification({ message: 'Team member added.', type: 'success' });
-                    // Update selectedProject state to reflect new team
-                    if (selectedProject && selectedProject.id === action.projectId) {
-                        setSelectedProject(prev => ({
-                            ...prev,
-                            team: [...(prev.team || []), action.personId]
-                        }));
-                    }
-                    break;
-                case 'REMOVE_TEAM_MEMBER':
-                    const projectRef_remove = doc(db, "projects", action.projectId);
-                    await updateDoc(projectRef_remove, {
-                        team: arrayRemove(action.personId)
-                    });
-                    setNotification({ message: 'Team member removed.', type: 'success' });
-                    // Update selectedProject state to reflect new team
-                    if (selectedProject && selectedProject.id === action.projectId) {
-                        setSelectedProject(prev => ({
-                            ...prev,
-                            team: (prev.team || []).filter(id => id !== action.personId)
-                        }));
-                    }
-                    break;
-                case 'ASSIGN_GROUP_TO_PROJECT':
-                    const groupToAssign = groups.find(g => g.id === action.groupId);
-                    if (groupToAssign && groupToAssign.members.length > 0) {
-                        const projectRef_assign = doc(db, "projects", action.projectId);
-                        await updateDoc(projectRef_assign, {
-                            team: arrayUnion(...groupToAssign.members) // Add all members from group
-                        });
-                        setNotification({ message: `Group "${groupToAssign.name}" assigned to project.`, type: 'success' });
-                        // Update selectedProject state to reflect new team
-                        if (selectedProject && selectedProject.id === action.projectId) {
-                            const newTeam = Array.from(new Set([...(selectedProject.team || []), ...groupToAssign.members]));
-                            setSelectedProject(prev => ({ ...prev, team: newTeam }));
-                        }
-                    }
-                    break;
-
-                default:
-                    console.warn('Unknown action type:', action.type);
-                    setIsSaving(false);
-            }
-        } catch (error) {
-            console.error("Error handling update:", error);
-            setNotification({ message: `Error: ${error.message}`, type: 'error' });
-            setIsSaving(false);
-        } finally {
-            // This logic ensures spinners stop correctly
-            const nonModalOpens = ['ADD_PERSON', 'EDIT_PERSON', 'ADD_TASK', 'EDIT_TASK', 'ADD_ITEM', 'OPEN_PROJECT'];
-            if (nonModalOpens.includes(action.type)) {
-                setIsSaving(false);
-            }
-            
-            const modalSaves = [
-                'SAVE_PERSON', 'SAVE_TASK', 'ADD_CLIENT', 'ADD_PROGRAM', 'ADD_PROJECT', 
-                'ADD_TASK_FROM_GLOBAL', 'UPDATE_PROJECT_STATUS', 'ADD_GROUP', 'DELETE_GROUP', 
-                'ADD_PERSON_TO_GROUP', 'REMOVE_PERSON_FROM_GROUP', 'ADD_TEAM_MEMBER', 
-                'REMOVE_TEAM_MEMBER', 'ASSIGN_GROUP_TO_PROJECT'
-            ];
-            if (modalSaves.includes(action.type)) {
-                setIsSaving(false);
-            }
-            
-            // Special case for simple deletes
-            if(action.type === 'DELETE_NODE' || action.type === 'DELETE_PERSON') {
-                setIsSaving(false);
-            }
-        }
+  // Authentication
+  useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
     };
-    
-    // --- Sign Out Handler ---
-    const handleSignOut = () => {
-        if(auth) {
-            signOut(auth).catch((error) => console.error("Sign out error", error));
-        }
-    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-    // --- Data Memoization ---
-    const projectMap = useMemo(() => {
-        const map = new Map();
-        projects.forEach(p => map.set(p.id, p));
-        return map;
-    }, [projects]);
+  // Data Fetching
+  useEffect(() => {
+    if (!user) return;
 
-    const displayedData = useMemo(() => {
-        const clientList = activeFilter === 'all' ? clients : clients.filter(c => c.id === activeFilter);
-        const peopleById = new Map(people.map(p => [p.id, p]));
-        
-        const activeProjects = projects.filter(p => p.status !== 'Pending');
+    // Use a single collection based on user ID for data privacy in this demo
+    const resourcesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'resources');
+    const tasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
 
-        const tasksByProjectId = new Map();
-        tasks.forEach(task => {
-            if (!tasksByProjectId.has(task.projectId)) {
-                tasksByProjectId.set(task.projectId, []);
-            }
-            tasksByProjectId.get(task.projectId).push(task);
-        });
-        return clientList.map(client => ({
-            ...client,
-            type: 'client',
-            children: (programs || []).filter(p => p.clientId === client.id).map(program => ({
-                ...program,
-                type: 'program',
-                children: (activeProjects || []).filter(p => p.programId === program.id).map(project => ({
-                    ...project,
-                    type: 'project',
-                    tasks: tasksByProjectId.get(project.id) || [], 
-                    children: (project.team || []).map(personId => ({
-                        ...(peopleById.get(personId) || { name: 'Unknown', role: 'Unknown' }),
-                        id: personId, 
-                        personId: personId, 
-                        type: 'person'
-                    })).filter(p => p.name !== 'Unknown') 
-                }))
-            }))
-        }));
-    }, [activeFilter, clients, programs, projects, people, tasks]); 
-
-
-    // --- View Renderer ---
-    const renderView = () => {
-        switch (viewMode) {
-            case 'orgChart':
-                return (
-                    <>
-                        <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-                        <main className="p-8">
-                            <div className="space-y-4">
-                                {displayedData.map(client => (
-                                    <div key={client.id} className="bg-white p-6 rounded-lg shadow-md">
-                                        <Node 
-                                            node={client} 
-                                            level={0} 
-                                            onUpdate={handleUpdate} 
-                                            onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))}
-                                            onProjectSelect={(project) => handleUpdate({ type: 'OPEN_PROJECT', project })}
-                                        />
-                                    </div>
-                                ))}
-                                {displayedData.length === 0 && !loading && ( <div className="text-center py-20 bg-white rounded-lg border-2 border-dashed"><h2 className="text-2xl font-semibold text-gray-500">No clients to display.</h2></div> )}
-                            </div>
-                        </main>
-                    </>
-                );
-         case 'teamManagement': // or case 'team': depending on your exact string
-                return (
-                    <TeamManagementView 
-                        people={people} 
-                        tasks={tasks}                       // Ensures Timeline works
-                        groups={groups}
-                        projects={projects}
-                        clientFilter={clientFilter}         // <--- ADDS FILTERING (Fixes "Unassigned")
-                        onEditPerson={setEditingPerson}
-                        onPersonSelect={setDetailedPerson}  // <--- Updates handler to accept Person Object
-                        onUpdate={handleUpdate}
-                    />
-                ); 
-                        />;
-            case 'workHub':
-                return <WorkHub 
-                            clients={clients} 
-                            programs={programs} 
-                            projects={projects} 
-                            tasks={tasks} 
-                            allPeople={people} 
-                            groups={groups}
-                            onUpdate={handleUpdate} 
-                            currentUser={currentUser} 
-                        />;
-            case 'network':
-                return <div className="h-[calc(100vh-120px)]"><NetworkView data={displayedData} onNodeClick={(node) => console.log(node)} /></div>;
-            case 'financials':
-                return <FinancialsDashboard people={people} projects={projects} />;
-            default:
-                return (
-                     <>
-                        <ClientFilter clients={clients} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-                        <main className="p-8"><div className="space-y-4">{displayedData.map(client => (<div key={client.id} className="bg-white p-6 rounded-lg shadow-md"><Node node={client} level={0} onUpdate={()=>{}} onPersonSelect={()=>{}} onProjectSelect={() => {}} /></div>))}</div></main>
-                    </>
-                );
-        }
-    };
-    
-    // --- Auth-Based Return Logic ---
-    if (isAuthLoading || (currentUser && loading)) {
-        return <LoadingSpinner />;
-    }
-    if (!currentUser) {
-        return <Login />;
-    }
-
-    // --- Main App Return ---
-    return (
-        <div className="bg-gray-100 min-h-screen font-sans text-gray-900">
-            <Notification 
-                message={notification.message}
-                type={notification.type}
-                onClose={() => setNotification({ message: '', type: '' })}
-            />
-            
-            <div className="flex flex-col h-screen">
-               {/* Admin Toolbar */}
-<div className="bg-gray-800 text-gray-300 text-xs py-1 px-4 flex justify-end items-center">
-    <button 
-        onClick={() => setIsAdminUploadOpen(true)}
-        className="hover:text-white transition-colors flex items-center gap-1"
-    >
-        <span>⚙️ Admin: Update Global Rates</span>
-    </button>
-</div> 
-                <Header 
-                    viewMode={viewMode} 
-                    setViewMode={setViewMode} 
-                    handleSignOut={handleSignOut}
-                    onUpdate={handleUpdate}
-                />
-                <div className="flex-1 overflow-y-auto">
-                    {renderView()}
-                </div>
-                
-                {/* --- Modals --- */}
-                 <PersonModal 
-                    isOpen={isPersonModalOpen}
-                    onClose={() => setIsPersonModalOpen(false)}
-                    onSave={(person) => handleUpdate({ type: 'SAVE_PERSON', person })}
-                    personData={editingPerson}
-                    isSaving={isSaving}
-                />
-                 <TaskModal 
-                    isOpen={isTaskModalOpen}
-                    onClose={() => setIsTaskModalOpen(false)}
-                    onSave={(task) => handleUpdate({ type: 'SAVE_TASK', task })}
-                    taskData={editingTask}
-                    allPeople={people}
-                    projects={projects} 
-                    groups={groups}
-                    isSaving={isSaving}
-                />
-                <AddItemModal
-                    isOpen={isAddItemModalOpen}
-                    onClose={() => setIsAddItemModalOpen(false)}
-                    onSave={handleUpdate}
-                    clients={clients}
-                    programs={programs}
-                    projects={projects}
-                    isSaving={isSaving}
-                />
-                {/* ▼▼▼ KEY FIX: Pass 'clients' prop here ▼▼▼ */}
-            <AdminDataUpload 
-                isOpen={isAdminUploadOpen}
-                onClose={() => setIsAdminUploadOpen(false)}
-                clients={clients} 
-            />
-
-                
-                {/* --- Detail Cards / Overlays --- */}
-                {detailedPerson && (
-                    <PersonDetailCard 
-                        person={detailedPerson} 
-                        onClose={() => setDetailedPerson(null)} 
-                        projectMap={projectMap} 
-                        tasks={tasks} 
-                    />
-                )}
-                
-                {selectedProject && (
-                    <ProjectHub
-                        project={projects.find(p => p.id === selectedProject.id) || selectedProject} // Use live data from state
-                        onClose={() => setSelectedProject(null)}
-                        onUpdate={handleUpdate}
-                        allPeople={people}
-                        allGroups={groups}
-                    />
-                )}
-            </div>
-        </div>
+    const unsubResources = onSnapshot(query(resourcesRef), 
+      (snapshot) => setResources(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error("Res err:", err)
     );
+
+    const unsubTasks = onSnapshot(query(tasksRef), 
+      (snapshot) => setTasks(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error("Task err:", err)
+    );
+
+    return () => {
+      unsubResources();
+      unsubTasks();
+    };
+  }, [user]);
+
+  // Handlers
+  const addResource = async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'), data);
+  };
+
+  const deleteResource = async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'resources', id));
+  };
+
+  const addTask = async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), data);
+  };
+
+  const updateTask = async (id, data) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id), data);
+  };
+
+  const deleteTask = async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id));
+  };
+
+  if (loading) return <LoadingScreen />;
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard tasks={tasks} resources={resources} />;
+      case 'workHub':
+        return (
+          <WorkHub 
+            tasks={tasks} 
+            resources={resources} 
+            onAddTask={addTask}
+            onUpdateTask={updateTask}
+            onDeleteTask={deleteTask}
+          />
+        );
+      case 'resources':
+        return (
+          <ResourceList 
+            resources={resources} 
+            onAddResource={addResource} 
+            onDeleteResource={deleteResource} 
+          />
+        );
+      case 'planner':
+        return (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
+             <CalendarIcon size={64} className="mb-4 opacity-20" />
+             <h3 className="text-xl font-medium text-slate-600">Planner View</h3>
+             <p>This module is currently under development.</p>
+          </div>
+        );
+      default:
+        return <Dashboard tasks={tasks} resources={resources} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Mobile Header */}
+        <div className="md:hidden bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm z-10">
+          <div className="flex items-center space-x-2 font-bold text-slate-800">
+            <Layout className="w-6 h-6 text-blue-600" />
+            <span>PlanFlow</span>
+          </div>
+          <button className="text-slate-500">
+            <MoreVertical />
+          </button>
+        </div>
+
+        {/* Mobile Bottom Nav */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 z-50">
+           {[
+             { id: 'dashboard', icon: BarChart3 },
+             { id: 'workHub', icon: Briefcase },
+             { id: 'resources', icon: Users }
+           ].map(item => (
+             <button
+               key={item.id}
+               onClick={() => setActiveTab(item.id)}
+               className={`${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}
+             >
+               <item.icon />
+             </button>
+           ))}
+        </div>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+          <div className="max-w-7xl mx-auto h-full">
+            {renderContent()}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 }
