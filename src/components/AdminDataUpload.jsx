@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { writeBatch, doc, collection, addDoc } from 'firebase/firestore'; 
+// Force Update: v2 - Client Selection Logic
+import React, { useState, useEffect } from 'react';
+import { writeBatch, doc, collection, addDoc, getDocs } from 'firebase/firestore'; 
 import { SpinnerIcon } from './Icons';
 import { db } from '../firebase'; 
 
@@ -23,12 +24,39 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
     const [progress, setProgress] = useState('');
     const [error, setError] = useState('');
     const [mode, setMode] = useState('rates'); // 'rates' or 'team'
+    
+    // Client selection state
+    const [clients, setClients] = useState([]);
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [loadingClients, setLoadingClients] = useState(false);
+
+    // Fetch clients when opening or switching to Team mode
+    useEffect(() => {
+        if (isOpen && mode === 'team') {
+            const fetchClients = async () => {
+                setLoadingClients(true);
+                try {
+                    const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'clients'));
+                    const clientList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setClients(clientList);
+                    if (clientList.length > 0) {
+                        setSelectedClientId(clientList[0].id);
+                    }
+                } catch (err) {
+                    console.error("Error fetching clients:", err);
+                    setError("Could not load clients. Please ensure you have created at least one Client.");
+                } finally {
+                    setLoadingClients(false);
+                }
+            };
+            fetchClients();
+        }
+    }, [isOpen, mode]);
 
     if (!isOpen) return null;
 
     const parseCSV = (text) => {
         const lines = text.split('\n');
-        // Find the first valid header row (skipping junk rows like '48,445...')
         let headerIndex = 0;
         let headers = [];
         
@@ -40,13 +68,12 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
             }
         }
         
-        if (headers.length === 0) return []; // No headers found
+        if (headers.length === 0) return []; 
 
         const data = [];
         for (let i = headerIndex + 1; i < lines.length; i++) {
             if (!lines[i].trim()) continue;
             
-            // Regex to handle commas inside quotes
             const currentLine = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
             const simpleSplit = lines[i].split(',');
             const values = currentLine.length === headers.length ? currentLine : simpleSplit;
@@ -86,6 +113,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                 if (mode === 'rates') {
                     await uploadRates(data);
                 } else {
+                    if (!selectedClientId) throw new Error("Please select a Client first.");
                     await generateTestTeam(data);
                 }
 
@@ -98,7 +126,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
         reader.readAsText(file);
     };
 
-    // --- MODE 1: Upload Rates to Firestore ---
+    // --- MODE 1: Upload Rates ---
     const uploadRates = async (data) => {
         setProgress(`Parsed ${data.length} rows. Starting Rate Upload...`);
         const BATCH_SIZE = 450; 
@@ -149,27 +177,23 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
         
         const peopleRef = collection(db, 'artifacts', appId, 'public', 'data', 'people');
         
-        console.log("--- GENERATING TEST TEAM ---");
-        
         let count = 0;
         for (let i = 0; i < selected.length; i++) {
             const row = selected[i];
             const firstName = firstNames[i % firstNames.length];
             
-            // Create a person object that MATCHES the rate card
+            // Create a person object linked to the SELECTED client ID
             const newPerson = {
                 name: `${firstName} (${row.Region})`,
                 role: row.Role,     
                 region: row.Region, 
-                client: "Internal", // <--- ADDED: Assign to a client so they show in UI
+                client: selectedClientId, // <--- KEY FIX: Use the actual Client ID
                 skills: [row['Category | Function'] || 'General'],
                 allocation: 0,
                 avatar: `https://ui-avatars.com/api/?name=${firstName}&background=random`
             };
 
-            const docRef = await addDoc(peopleRef, newPerson);
-            console.log("Created Person:", newPerson.name, docRef.id); // Log to console for verification
-            
+            await addDoc(peopleRef, newPerson);
             count++;
             setProgress(`Created ${count} of 20 test people...`);
         }
@@ -208,8 +232,32 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                 <p className="text-sm text-gray-600 mb-6">
                     {mode === 'rates' 
                         ? "Upload 'GLOBAL_COST_RATES_ENRICHED_FINAL.csv' to update the master database." 
-                        : "Upload the SAME csv file. We will pick 20 random rows and create test people that match those roles."}
+                        : "Select a Client, then upload the CSV to generate 20 random people assigned to them."}
                 </p>
+
+                {/* Client Dropdown for Team Mode */}
+                {mode === 'team' && (
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Client:</label>
+                        {loadingClients ? (
+                            <div className="text-sm text-gray-500">Loading clients...</div>
+                        ) : clients.length > 0 ? (
+                            <select 
+                                value={selectedClientId} 
+                                onChange={(e) => setSelectedClientId(e.target.value)}
+                                className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm focus:ring-purple-500 focus:border-purple-500"
+                            >
+                                {clients.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
+                                No clients found! Please add a Client in the Team view first.
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {!uploading ? (
                     <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:bg-gray-50 cursor-pointer relative">
@@ -227,7 +275,7 @@ export const AdminDataUpload = ({ isOpen, onClose }) => {
                             )}
                             <div className="flex text-sm text-gray-600">
                                 <span className="relative cursor-pointer bg-white rounded-md font-medium text-purple-600 hover:text-purple-500">
-                                    {mode === 'rates' ? 'Upload Rates CSV' : 'Select Rates CSV to Seed Team'}
+                                    {mode === 'rates' ? 'Upload Rates CSV' : 'Generate from CSV'}
                                 </span>
                             </div>
                         </div>
