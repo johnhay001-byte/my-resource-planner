@@ -20,6 +20,7 @@ import { Notification } from './components/Notification';
 import { NetworkView } from './components/NetworkView'; 
 import { LoadingSpinner } from './components/LoadingSpinner'; 
 import { AddItemModal } from './components/AddItemModal';
+import { AdminDataUpload } from './components/AdminDataUpload';
 import './index.css';
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+    const [isAdminUploadOpen, setIsAdminUploadOpen] = useState(false);
     const [editingPerson, setEditingPerson] = useState(null);
     const [editingTask, setEditingTask] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -464,6 +466,15 @@ export default function App() {
             />
             
             <div className="flex flex-col h-screen">
+               {/* Admin Toolbar */}
+<div className="bg-gray-800 text-gray-300 text-xs py-1 px-4 flex justify-end items-center">
+    <button 
+        onClick={() => setIsAdminUploadOpen(true)}
+        className="hover:text-white transition-colors flex items-center gap-1"
+    >
+        <span>⚙️ Admin: Update Global Rates</span>
+    </button>
+</div> 
                 <Header 
                     viewMode={viewMode} 
                     setViewMode={setViewMode} 
@@ -501,6 +512,10 @@ export default function App() {
                     projects={projects}
                     isSaving={isSaving}
                 />
+                <AdminDataUpload 
+    isOpen={isAdminUploadOpen}
+    onClose={() => setIsAdminUploadOpen(false)}
+/>
                 
                 {/* --- Detail Cards / Overlays --- */}
                 {detailedPerson && (
