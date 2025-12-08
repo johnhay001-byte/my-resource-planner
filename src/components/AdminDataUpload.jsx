@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, writeBatch, doc, collection } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { SpinnerIcon, UploadIcon } from './Icons';
+import { SpinnerIcon } from './Icons'; // Removed UploadIcon from here
 
 // Initialize Firebase (using existing config from window)
 const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
@@ -10,6 +10,13 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const appId = window.__app_id || 'default-app-id';
+
+// Define UploadIcon locally to avoid import errors
+const UploadIcon = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+    </svg>
+);
 
 export const AdminDataUpload = ({ isOpen, onClose }) => {
     const [uploading, setUploading] = useState(false);
