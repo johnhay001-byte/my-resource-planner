@@ -1,12 +1,11 @@
-// Force Update: v3 - Accepting Clients as Prop
+// Force Update: v4 - Save Client NAME instead of ID
 import React, { useState, useEffect } from 'react';
-import { writeBatch, doc, collection, addDoc } from 'firebase/firestore'; 
+import { writeBatch, doc, collection, addDoc, getDocs } from 'firebase/firestore'; 
 import { SpinnerIcon } from './Icons';
 import { db } from '../firebase'; 
 
 const appId = window.__app_id || 'default-app-id';
 
-// Define UploadIcon locally
 const UploadIcon = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -19,7 +18,6 @@ const UserGroupIcon = ({ className }) => (
     </svg>
 );
 
-// KEY CHANGE: Now accepting 'clients' as a prop
 export const AdminDataUpload = ({ isOpen, onClose, clients = [] }) => {
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState('');
@@ -28,7 +26,6 @@ export const AdminDataUpload = ({ isOpen, onClose, clients = [] }) => {
     
     const [selectedClientId, setSelectedClientId] = useState('');
 
-    // Update selected client when the list loads or changes
     useEffect(() => {
         if (clients.length > 0 && !selectedClientId) {
             setSelectedClientId(clients[0].id);
@@ -159,17 +156,22 @@ export const AdminDataUpload = ({ isOpen, onClose, clients = [] }) => {
         
         const peopleRef = collection(db, 'artifacts', appId, 'public', 'data', 'people');
         
+        // Find the selected client OBJECT to get its Name
+        const clientObj = clients.find(c => c.id === selectedClientId);
+        const clientName = clientObj ? clientObj.name : "Internal"; // Fallback
+
         let count = 0;
         for (let i = 0; i < selected.length; i++) {
             const row = selected[i];
             const firstName = firstNames[i % firstNames.length];
             
-            // Create a person object linked to the SELECTED client ID
             const newPerson = {
                 name: `${firstName} (${row.Region})`,
                 role: row.Role,     
                 region: row.Region, 
-                client: selectedClientId, // Use the actual Client ID passed from props
+                // ▼▼▼ KEY FIX: Saving the Name, not just the ID. Some simple filters use Name.
+                client: clientName, 
+                clientId: selectedClientId, // Saving ID too just in case
                 skills: [row['Category | Function'] || 'General'],
                 allocation: 0,
                 avatar: `https://ui-avatars.com/api/?name=${firstName}&background=random`
@@ -195,7 +197,6 @@ export const AdminDataUpload = ({ isOpen, onClose, clients = [] }) => {
             <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
                 <h2 className="text-xl font-bold mb-4">Admin Data Tools</h2>
                 
-                {/* Tabs */}
                 <div className="flex space-x-4 mb-6 border-b pb-2">
                     <button 
                         onClick={() => setMode('rates')}
@@ -217,7 +218,6 @@ export const AdminDataUpload = ({ isOpen, onClose, clients = [] }) => {
                         : "Select a Client, then upload the CSV to generate 20 random people assigned to them."}
                 </p>
 
-                {/* Client Dropdown for Team Mode */}
                 {mode === 'team' && (
                     <div className="mb-6">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Client:</label>

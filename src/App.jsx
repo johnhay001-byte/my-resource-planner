@@ -415,13 +415,19 @@ export default function App() {
                         </main>
                     </>
                 );
-            case 'teamManagement':
-                 return <TeamManagementView 
-                            people={people} 
-                            tasks={tasks} 
-                            groups={groups} 
-                            onUpdate={handleUpdate} 
-                            onPersonSelect={(personId) => setDetailedPerson(people.find(p => p.id === personId))} 
+         case 'teamManagement': // or case 'team': depending on your exact string
+                return (
+                    <TeamManagementView 
+                        people={people} 
+                        tasks={tasks}                       // Ensures Timeline works
+                        groups={groups}
+                        projects={projects}
+                        clientFilter={clientFilter}         // <--- ADDS FILTERING (Fixes "Unassigned")
+                        onEditPerson={setEditingPerson}
+                        onPersonSelect={setDetailedPerson}  // <--- Updates handler to accept Person Object
+                        onUpdate={handleUpdate}
+                    />
+                ); 
                         />;
             case 'workHub':
                 return <WorkHub 
