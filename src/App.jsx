@@ -17,7 +17,14 @@ import {
   LogOut,
   Database,
   DollarSign,
-  Building2
+  Building2,
+  Folder,
+  FileText,
+  CheckSquare,
+  Flag,
+  List,
+  Kanban,
+  GanttChart
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -36,7 +43,7 @@ import {
   doc, 
   updateDoc,
   serverTimestamp,
-  writeBatch
+  orderBy
 } from 'firebase/firestore';
 
 // --- Firebase Initialization ---
@@ -73,24 +80,13 @@ if (typeof __app_id !== 'undefined' && __app_id) {
 }
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-// --- Helper Data for Seeding ---
+// --- Helper Data for Seeding (DISABLED FOR SPRINT 1) ---
 
 const SAMPLE_ROLES = [
   { title: 'Senior Developer', rate: 150 },
   { title: 'Mid-Level Developer', rate: 100 },
-  { title: 'Junior Developer', rate: 75 },
-  { title: 'UI/UX Designer', rate: 110 },
-  { title: 'Project Manager', rate: 130 },
-  { title: 'QA Specialist', rate: 90 },
-  { title: 'DevOps Engineer', rate: 160 }
+  // ... existing roles hidden to prevent pollution
 ];
-
-const SAMPLE_CLIENTS = [
-  'Acme Corp', 'Globex', 'Soylent Corp', 'Umbrella Inc', 'Stark Ind', 'Wayne Ent'
-];
-
-const FIRST_NAMES = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth'];
-const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
 
 // --- Components ---
 
@@ -133,7 +129,6 @@ const LoadingScreen = () => (
 const Sidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'planner', label: 'Resource Planner', icon: CalendarIcon },
     { id: 'workHub', label: 'Work Hub', icon: Briefcase },
     { id: 'resources', label: 'Team & Assets', icon: Users },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -172,11 +167,11 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
 
       <div className="p-4 border-t border-slate-700">
         <div className="bg-slate-800 rounded-xl p-4">
-          <p className="text-xs text-slate-400 mb-1">Storage Used</p>
+          <p className="text-xs text-slate-400 mb-1">Sprint 1: Recovery</p>
           <div className="w-full bg-slate-700 rounded-full h-2 mb-2">
-            <div className="bg-emerald-500 h-2 rounded-full w-[75%]"></div>
+            <div className="bg-blue-500 h-2 rounded-full w-[25%]"></div>
           </div>
-          <p className="text-xs text-right text-slate-400">75%</p>
+          <p className="text-xs text-right text-slate-400">Phase 1/3</p>
         </div>
       </div>
     </div>
@@ -200,8 +195,10 @@ const StatCard = ({ title, value, change, icon: Icon, color }) => (
 
 const Dashboard = ({ tasks, resources }) => {
   const activeTasks = tasks.filter(t => t.status === 'in-progress').length;
-  const pendingTasks = tasks.filter(t => t.status === 'pending').length;
-  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const programs = tasks.filter(t => t.type === 'program').length;
+  const projects = tasks.filter(t => t.type === 'project').length;
+  
+  // Calculate average rate simply for dashboard metric
   const totalBurnRate = resources.reduce((acc, curr) => acc + (parseInt(curr.hourlyRate) || 0), 0);
   
   return (
@@ -209,60 +206,37 @@ const Dashboard = ({ tasks, resources }) => {
       <h2 className="text-2xl font-bold text-slate-800">Dashboard Overview</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Resources" value={resources.length} change={12} icon={Users} color="bg-blue-500" />
-        <StatCard title="Active Tasks" value={activeTasks} change={5} icon={Clock} color="bg-amber-500" />
-        <StatCard title="Total Burn Rate/Hr" value={`$${totalBurnRate}`} change={8} icon={DollarSign} color="bg-emerald-500" />
-        <StatCard title="Pending Review" value={pendingTasks} change={-2} icon={AlertCircle} color="bg-purple-500" />
+        <StatCard title="Total Resources" value={resources.length} change={0} icon={Users} color="bg-blue-500" />
+        <StatCard title="Active Projects" value={projects} change={0} icon={FileText} color="bg-amber-500" />
+        <StatCard title="Programs" value={programs} change={0} icon={Folder} color="bg-purple-500" />
+        <StatCard title="Total Burn Rate/Hr" value={`$${totalBurnRate}`} change={0} icon={DollarSign} color="bg-emerald-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Recent Activity</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Work Hierarchy Status</h3>
           <div className="space-y-4">
-            {tasks.slice(0, 5).map(task => (
-              <div key={task.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    task.status === 'completed' ? 'bg-emerald-500' : 
-                    task.status === 'in-progress' ? 'bg-blue-500' : 'bg-slate-300'
-                  }`} />
-                  <div>
-                    <p className="font-medium text-slate-800">{task.title}</p>
-                    <p className="text-xs text-slate-500">{task.clientName || 'Internal'}</p>
-                  </div>
-                </div>
-                <span className="text-xs font-medium px-2 py-1 bg-slate-100 rounded-md text-slate-600">
-                  {task.status}
-                </span>
-              </div>
-            ))}
-            {tasks.length === 0 && <p className="text-slate-400 text-center py-4">No recent activity</p>}
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Team Availability</h3>
-          <div className="space-y-4">
-            {resources.slice(0, 5).map(res => (
-              <div key={res.id} className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
-                    {res.name.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700">{res.name}</span>
-                    <span className="block text-xs text-slate-500">{res.role} • ${res.hourlyRate}/hr</span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-24 bg-slate-100 rounded-full h-2">
-                    <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '80%' }}></div>
-                  </div>
-                  <span className="text-xs text-slate-500">80%</span>
-                </div>
-              </div>
-            ))}
-            {resources.length === 0 && <p className="text-slate-400 text-center py-4">No resources added</p>}
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+               <div className="flex items-center space-x-3">
+                  <Folder className="text-purple-600" size={20}/>
+                  <span className="font-medium text-slate-700">Programs</span>
+               </div>
+               <span className="text-lg font-bold text-slate-800">{programs}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+               <div className="flex items-center space-x-3">
+                  <FileText className="text-amber-600" size={20}/>
+                  <span className="font-medium text-slate-700">Projects</span>
+               </div>
+               <span className="text-lg font-bold text-slate-800">{projects}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+               <div className="flex items-center space-x-3">
+                  <CheckSquare className="text-blue-600" size={20}/>
+                  <span className="font-medium text-slate-700">Tasks</span>
+               </div>
+               <span className="text-lg font-bold text-slate-800">{tasks.filter(t => !t.type || t.type === 'task').length}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -270,192 +244,392 @@ const Dashboard = ({ tasks, resources }) => {
   );
 };
 
-const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) => {
-  const [filter, setFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskStatus, setNewTaskStatus] = useState('pending');
-  const [newTaskResource, setNewTaskResource] = useState('');
-  const [newTaskClient, setNewTaskClient] = useState('');
+// --- Work Hub Components ---
 
-  const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
+const WorkItemIcon = ({ type, isMilestone }) => {
+  if (isMilestone) return <Flag size={16} className="text-red-500" />;
+  switch (type) {
+    case 'program': return <Folder size={16} className="text-purple-600" />;
+    case 'project': return <FileText size={16} className="text-amber-600" />;
+    default: return <CheckSquare size={16} className="text-blue-600" />;
+  }
+};
 
-  const handleAdd = (e) => {
+const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
+  const [title, setTitle] = useState('');
+  const [type, setType] = useState('task');
+  const [parentId, setParentId] = useState('');
+  const [status, setStatus] = useState('pending');
+  const [resourceId, setResourceId] = useState('');
+  const [isMilestone, setIsMilestone] = useState(false);
+  const [clientName, setClientName] = useState('');
+
+  // Filter potential parents based on selected type
+  const potentialParents = useMemo(() => {
+    if (type === 'project') return items.filter(i => i.type === 'program');
+    if (type === 'task') return items.filter(i => i.type === 'project' || i.type === 'program');
+    return [];
+  }, [type, items]);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-    onAddTask({
-      title: newTaskTitle,
-      status: newTaskStatus,
-      resourceId: newTaskResource,
-      clientName: newTaskClient || 'Internal',
-      createdAt: serverTimestamp(),
+    onAdd({
+      title,
+      type,
+      parentId: parentId || null,
+      status,
+      resourceId,
+      isMilestone,
+      clientName,
+      createdAt: serverTimestamp()
     });
-    setNewTaskTitle('');
-    setNewTaskClient('');
-    setIsModalOpen(false);
+    onClose();
+    // Reset form
+    setTitle('');
+    setType('task');
+    setParentId('');
   };
 
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'completed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'in-progress': return 'bg-blue-100 text-blue-700 border-blue-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+        <h3 className="text-xl font-bold mb-4 text-slate-800">Add Work Item</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Item Type</label>
+              <select 
+                value={type} 
+                onChange={(e) => { setType(e.target.value); setParentId(''); }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="program">Program</option>
+                <option value="project">Project</option>
+                <option value="task">Task</option>
+              </select>
+            </div>
+            
+            {(type === 'task' || type === 'project') && (
+               <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Flag As</label>
+                  <label className="flex items-center space-x-2 px-3 py-2 border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                    <input 
+                      type="checkbox" 
+                      checked={isMilestone} 
+                      onChange={(e) => setIsMilestone(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500" 
+                    />
+                    <span className="text-sm font-medium text-slate-700">Milestone</span>
+                  </label>
+               </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder={`Enter ${type} name`}
+              required
+            />
+          </div>
+
+          {/* Parent Selector - Only show if valid parents exist */}
+          {potentialParents.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Parent (Optional)</label>
+              <select
+                value={parentId}
+                onChange={(e) => setParentId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">-- No Parent (Top Level) --</option>
+                {potentialParents.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.type === 'program' ? '[Prg] ' : '[Prj] '} {p.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Client (Optional)</label>
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="e.g. Acme Corp"
+                />
+             </div>
+             <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Assignee</label>
+                <select
+                  value={resourceId}
+                  onChange={(e) => setResourceId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Unassigned</option>
+                  {resources.map(r => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+             </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Add Item
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) => {
+  const [viewMode, setViewMode] = useState('list'); // list, board, calendar, gantt
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // --- Views ---
+
+  const ListView = () => {
+    // 1. Build Tree Hierarchy in Memory
+    const rootItems = tasks.filter(t => !t.parentId);
+    
+    const renderRow = (item, level = 0) => {
+       const children = tasks.filter(t => t.parentId === item.id);
+       const hasChildren = children.length > 0;
+       
+       return (
+         <React.Fragment key={item.id}>
+           <tr className="hover:bg-slate-50 border-b border-slate-100 last:border-0 group">
+             <td className="py-3 px-4">
+               <div className="flex items-center" style={{ paddingLeft: `${level * 24}px` }}>
+                 {/* Visual connector lines could go here */}
+                 <div className="mr-2 opacity-70">
+                   <WorkItemIcon type={item.type || 'task'} isMilestone={item.isMilestone} />
+                 </div>
+                 <span className={`text-sm ${item.type === 'program' ? 'font-bold text-slate-800' : item.type === 'project' ? 'font-semibold text-slate-700' : 'text-slate-600'}`}>
+                   {item.title}
+                 </span>
+               </div>
+             </td>
+             <td className="py-3 px-4">
+                <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-500 uppercase">
+                  {item.type || 'task'}
+                </span>
+             </td>
+             <td className="py-3 px-4 text-xs text-slate-500">{item.clientName || '-'}</td>
+             <td className="py-3 px-4">
+                <div className="flex items-center space-x-2">
+                   {item.resourceId && (
+                     <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-bold text-blue-700">
+                       {resources.find(r => r.id === item.resourceId)?.name?.substring(0,2).toUpperCase()}
+                     </div>
+                   )}
+                   <span className="text-xs text-slate-600">{resources.find(r => r.id === item.resourceId)?.name || '-'}</span>
+                </div>
+             </td>
+             <td className="py-3 px-4">
+                <select
+                  value={item.status}
+                  onChange={(e) => onUpdateTask(item.id, { status: e.target.value })}
+                  className="text-xs border-none bg-transparent font-medium text-slate-600 cursor-pointer focus:ring-0 py-0 pl-0"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+             </td>
+             <td className="py-3 px-4 text-right">
+                <button onClick={() => onDeleteTask(item.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <LogOut size={14} />
+                </button>
+             </td>
+           </tr>
+           {children.map(child => renderRow(child, level + 1))}
+         </React.Fragment>
+       );
+    };
+
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase">
+            <tr>
+              <th className="py-3 px-4 font-semibold w-1/3">Item Name</th>
+              <th className="py-3 px-4 font-semibold">Type</th>
+              <th className="py-3 px-4 font-semibold">Client</th>
+              <th className="py-3 px-4 font-semibold">Assignee</th>
+              <th className="py-3 px-4 font-semibold">Status</th>
+              <th className="py-3 px-4 font-semibold text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rootItems.length > 0 ? rootItems.map(item => renderRow(item)) : (
+              <tr><td colSpan="6" className="py-8 text-center text-slate-400">No work items found. Add a Program or Project to start.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
   };
+
+  const BoardView = () => {
+    // For Board view, we might flatten the list or just show tasks. 
+    // For Sprint 1, let's show everything flattened by status.
+    const columns = ['pending', 'in-progress', 'completed'];
+    return (
+      <div className="flex h-full gap-4 overflow-x-auto pb-4">
+        {columns.map(status => (
+          <div key={status} className="flex-1 min-w-[300px] bg-slate-100 rounded-xl p-3 flex flex-col">
+            <div className="flex items-center justify-between mb-3 px-1">
+               <h4 className="font-semibold text-slate-700 capitalize">{status.replace('-', ' ')}</h4>
+               <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full text-slate-600">
+                 {tasks.filter(t => t.status === status).length}
+               </span>
+            </div>
+            <div className="space-y-3 overflow-y-auto flex-1">
+              {tasks.filter(t => t.status === status).map(item => (
+                <div key={item.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow group">
+                  <div className="flex items-start justify-between mb-2">
+                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide border ${
+                        item.type === 'program' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                        item.type === 'project' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                        'bg-blue-50 text-blue-700 border-blue-100'
+                     }`}>
+                       {item.type || 'task'}
+                     </span>
+                     {item.isMilestone && <Flag size={12} className="text-red-500" />}
+                  </div>
+                  <h5 className="font-medium text-slate-800 text-sm mb-1">{item.title}</h5>
+                  {item.clientName && <div className="flex items-center text-xs text-slate-400 mb-2"><Building2 size={10} className="mr-1"/>{item.clientName}</div>}
+                  
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-50 mt-2">
+                     <div className="flex items-center space-x-1">
+                       {item.resourceId ? (
+                         <>
+                           <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-600">
+                             {resources.find(r => r.id === item.resourceId)?.name?.substring(0,1)}
+                           </div>
+                           <span className="text-[10px] text-slate-500">{resources.find(r => r.id === item.resourceId)?.name}</span>
+                         </>
+                       ) : <span className="text-[10px] text-slate-400 italic">Unassigned</span>}
+                     </div>
+                     <button onClick={() => onDeleteTask(item.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100">
+                        <LogOut size={12} />
+                     </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const PlaceholderView = ({ name, icon: Icon }) => (
+    <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+      <Icon size={48} className="mb-4 opacity-20" />
+      <h3 className="text-xl font-medium text-slate-600">{name} View</h3>
+      <p>Coming in Sprint 2: Time-based visualization of your data.</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Work Hub</h2>
-          <p className="text-slate-500 text-sm">Manage and track project tasks</p>
+          <p className="text-slate-500 text-sm">Manage Programs, Projects, and Tasks</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
         >
           <Plus size={18} />
-          <span>New Task</span>
+          <span>Add Item</span>
         </button>
       </div>
 
-      <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
-        {['all', 'pending', 'in-progress', 'completed'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-all ${
-              filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
+      {/* View Switcher */}
+      <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit shadow-sm">
+        <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`} title="List View"><List size={18}/></button>
+        <button onClick={() => setViewMode('board')} className={`p-2 rounded-md transition-all ${viewMode === 'board' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`} title="Board View"><Kanban size={18}/></button>
+        <button onClick={() => setViewMode('calendar')} className={`p-2 rounded-md transition-all ${viewMode === 'calendar' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`} title="Calendar View"><CalendarIcon size={18}/></button>
+        <button onClick={() => setViewMode('gantt')} className={`p-2 rounded-md transition-all ${viewMode === 'gantt' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`} title="Gantt View"><GanttChart size={18}/></button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-20">
-        {filteredTasks.map(task => (
-          <div key={task.id} className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 transition-all shadow-sm group">
-            <div className="flex justify-between items-start mb-3">
-              <span className={`px-2 py-1 rounded-md text-xs font-semibold border ${getStatusColor(task.status)}`}>
-                {task.status}
-              </span>
-              <button 
-                onClick={() => onDeleteTask(task.id)}
-                className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-            <h3 className="font-semibold text-slate-800 mb-1 truncate" title={task.title}>{task.title}</h3>
-            <div className="flex items-center space-x-1 mb-2">
-              <Building2 size={12} className="text-slate-400"/>
-              <span className="text-xs text-slate-500 font-medium">{task.clientName || 'Internal'}</span>
-            </div>
-            
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 font-bold">
-                   {resources.find(r => r.id === task.resourceId)?.name?.substring(0,2).toUpperCase() || 'NA'}
-                </div>
-                <span className="text-xs text-slate-500">
-                  {resources.find(r => r.id === task.resourceId)?.name || 'Unassigned'}
-                </span>
-              </div>
-              <select
-                value={task.status}
-                onChange={(e) => onUpdateTask(task.id, { status: e.target.value })}
-                className="text-xs border-none bg-transparent text-right font-medium text-blue-600 cursor-pointer focus:ring-0"
-              >
-                <option value="pending">Pending</option>
-                <option value="in-progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
-          </div>
-        ))}
-        {filteredTasks.length === 0 && (
-           <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-             <Briefcase size={48} className="mb-4 opacity-50" />
-             <p>No tasks found in this view.</p>
-           </div>
-        )}
+      <div className="flex-1 overflow-hidden">
+        {viewMode === 'list' && <ListView />}
+        {viewMode === 'board' && <BoardView />}
+        {viewMode === 'calendar' && <PlaceholderView name="Calendar" icon={CalendarIcon} />}
+        {viewMode === 'gantt' && <PlaceholderView name="Gantt & Timeline" icon={GanttChart} />}
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-xl font-bold mb-4">Create New Task</h3>
-            <form onSubmit={handleAdd} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Task Title</label>
-                <input
-                  type="text"
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Enter task description"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Client Name</label>
-                <input
-                  type="text"
-                  value={newTaskClient}
-                  onChange={(e) => setNewTaskClient(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g. Acme Corp (Optional)"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                    <select
-                      value={newTaskStatus}
-                      onChange={(e) => setNewTaskStatus(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="in-progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Assignee</label>
-                    <select
-                      value={newTaskResource}
-                      onChange={(e) => setNewTaskResource(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    >
-                      <option value="">Unassigned</option>
-                      {resources.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                    </select>
-                 </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Create Task
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddWorkItemModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onAdd={onAddTask} 
+        resources={resources}
+        items={tasks} // Pass all items to determine potential parents
+      />
     </div>
   );
+};
+
+// ... ResourceList and SettingsView components remain similar ...
+// ... I will render SettingsView but with Seeder disabled logic
+
+const SettingsView = ({ onSeedData, isSeeding }) => {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-slate-800">Settings & Administration</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center space-x-3 mb-4">
+             <div className="bg-slate-100 p-2 rounded-lg">
+                <Database className="text-slate-400 w-6 h-6" />
+             </div>
+             <h3 className="text-lg font-bold text-slate-800">Test Data Seeder</h3>
+          </div>
+          <p className="text-slate-600 mb-6 text-sm">
+            <span className="font-bold text-red-500">DISABLED:</span> The data seeder has been disabled to prevent pollution of your live production data. 
+          </p>
+          
+          <button 
+            disabled={true}
+            className="w-full py-3 rounded-lg font-medium bg-slate-100 text-slate-400 cursor-not-allowed flex items-center justify-center space-x-2"
+          >
+             <Database size={18} />
+             <span>Generation Disabled</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 };
 
 const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
@@ -498,15 +672,13 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
           </div>
           <div className="w-full md:w-48">
              <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Role</label>
-             <select 
+             <input 
+              type="text"
               value={newResRole}
               onChange={(e) => setNewResRole(e.target.value)}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-            >
-              {SAMPLE_ROLES.map(r => (
-                <option key={r.title} value={r.title}>{r.title}</option>
-              ))}
-            </select>
+              placeholder="Role Title"
+            />
           </div>
           <div className="w-full md:w-32">
             <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Rate ($/hr)</label>
@@ -577,73 +749,6 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
   );
 };
 
-const SettingsView = ({ onSeedData, isSeeding }) => {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-800">Settings & Administration</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center space-x-3 mb-4">
-             <div className="bg-blue-100 p-2 rounded-lg">
-                <Database className="text-blue-600 w-6 h-6" />
-             </div>
-             <h3 className="text-lg font-bold text-slate-800">Test Data Seeder</h3>
-          </div>
-          <p className="text-slate-600 mb-6 text-sm">
-            Generate dummy clients, resources, and tasks to test the application extensively. 
-            This uses a predefined list of titles and real-world rates.
-          </p>
-          
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
-             <p className="text-xs font-semibold uppercase text-slate-500 mb-2">Will Generate:</p>
-             <ul className="text-sm text-slate-700 space-y-1 list-disc list-inside">
-               <li>10 Random Resources (Devs, PMs, QA)</li>
-               <li>Each with specific hourly rates</li>
-               <li>20 Random Tasks assigned to them</li>
-               <li>Tasks linked to Dummy Clients (Acme, Globex, etc)</li>
-             </ul>
-          </div>
-
-          <button 
-            onClick={onSeedData}
-            disabled={isSeeding}
-            className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
-              isSeeding 
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {isSeeding ? (
-              <>
-                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                <span>Generating Data...</span>
-              </>
-            ) : (
-              <>
-                <Database size={18} />
-                <span>Generate Test Data</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm opacity-60">
-           <div className="flex items-center space-x-3 mb-4">
-             <div className="bg-slate-100 p-2 rounded-lg">
-                <DollarSign className="text-slate-500 w-6 h-6" />
-             </div>
-             <h3 className="text-lg font-bold text-slate-800">Currency & Formatting</h3>
-          </div>
-          <p className="text-slate-500 text-sm">
-             Global settings for currency display and date formatting are coming soon.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-};
-
 // --- Main App Component ---
 
 export default function App() {
@@ -686,14 +791,15 @@ export default function App() {
 
     // Use a single collection based on user ID for data privacy in this demo
     const resourcesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'resources');
-    const tasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
+    // Using orderBy createdAt to keep list stable
+    const tasksRef = query(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), orderBy('createdAt', 'desc'));
 
     const unsubResources = onSnapshot(query(resourcesRef), 
       (snapshot) => setResources(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
       (err) => console.error("Res err:", err)
     );
 
-    const unsubTasks = onSnapshot(query(tasksRef), 
+    const unsubTasks = onSnapshot(tasksRef, 
       (snapshot) => setTasks(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
       (err) => console.error("Task err:", err)
     );
@@ -730,59 +836,9 @@ export default function App() {
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id));
   };
 
-  // Seeding Logic
+  // Seeding Logic (REMOVED)
   const seedData = async () => {
-    if (!user) return;
-    setIsSeeding(true);
-    
-    try {
-      // 1. Create Resources
-      const createdResourceIds = [];
-      const batchPromises = [];
-      
-      for (let i = 0; i < 10; i++) {
-        const randomRole = SAMPLE_ROLES[Math.floor(Math.random() * SAMPLE_ROLES.length)];
-        const randomFirst = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
-        const randomLast = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
-        
-        const resData = {
-          name: `${randomFirst} ${randomLast}`,
-          role: randomRole.title,
-          hourlyRate: randomRole.rate
-        };
-        
-        // We do sequential awaits here to capture IDs easily for the next step, 
-        // in a production app we might use batching differently.
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'), resData);
-        createdResourceIds.push(docRef.id);
-      }
-
-      // 2. Create Tasks assigned to those resources
-      for (let i = 0; i < 20; i++) {
-        const randomResId = createdResourceIds[Math.floor(Math.random() * createdResourceIds.length)];
-        const randomClient = SAMPLE_CLIENTS[Math.floor(Math.random() * SAMPLE_CLIENTS.length)];
-        const statuses = ['pending', 'in-progress', 'completed'];
-        
-        const taskData = {
-          title: `${randomClient} Project - Phase ${Math.floor(Math.random() * 5) + 1}`,
-          status: statuses[Math.floor(Math.random() * statuses.length)],
-          resourceId: randomResId,
-          clientName: randomClient,
-          createdAt: serverTimestamp()
-        };
-
-        batchPromises.push(addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), taskData));
-      }
-
-      await Promise.all(batchPromises);
-      alert("Test data generated successfully!");
-      setActiveTab('workHub'); // Move them to see the data
-    } catch (error) {
-      console.error("Seeding error:", error);
-      alert("Failed to generate data.");
-    } finally {
-      setIsSeeding(false);
-    }
+    // Disabled
   };
 
   if (!auth) return <ConfigurationHelp />;
