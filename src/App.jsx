@@ -14,7 +14,10 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
-  LogOut
+  LogOut,
+  Database,
+  DollarSign,
+  Building2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -32,18 +35,17 @@ import {
   deleteDoc, 
   doc, 
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 
 // --- Firebase Initialization ---
 
 const getFirebaseConfig = () => {
   try {
-    // 1. Try environment variable injection (if provided by specific platform like generated preview)
     if (typeof __firebase_config !== 'undefined') {
       return JSON.parse(__firebase_config);
     }
-    // 2. Try Vite/Standard Environment Variables (For Vercel/Local)
     if (import.meta.env?.VITE_FIREBASE_API_KEY) {
       return {
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -61,18 +63,34 @@ const getFirebaseConfig = () => {
 };
 
 const firebaseConfig = getFirebaseConfig();
-
-// Initialize services only if config exists
 const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 
-// Sanitize appId to ensure it is a valid Firestore path segment (no slashes)
 let rawAppId = 'default-app-id';
 if (typeof __app_id !== 'undefined' && __app_id) {
   rawAppId = __app_id;
 }
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+// --- Helper Data for Seeding ---
+
+const SAMPLE_ROLES = [
+  { title: 'Senior Developer', rate: 150 },
+  { title: 'Mid-Level Developer', rate: 100 },
+  { title: 'Junior Developer', rate: 75 },
+  { title: 'UI/UX Designer', rate: 110 },
+  { title: 'Project Manager', rate: 130 },
+  { title: 'QA Specialist', rate: 90 },
+  { title: 'DevOps Engineer', rate: 160 }
+];
+
+const SAMPLE_CLIENTS = [
+  'Acme Corp', 'Globex', 'Soylent Corp', 'Umbrella Inc', 'Stark Ind', 'Wayne Ent'
+];
+
+const FIRST_NAMES = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
 
 // --- Components ---
 
@@ -85,11 +103,9 @@ const ConfigurationHelp = () => (
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
       </div>
-      
       <p className="text-slate-600 mb-6 leading-relaxed">
         The application could not connect to Firebase. This usually happens because the configuration keys are missing.
       </p>
-
       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
         <h3 className="font-semibold text-slate-700 mb-2 text-sm">How to fix:</h3>
         <ul className="list-disc list-inside text-sm text-slate-600 space-y-2">
@@ -98,7 +114,6 @@ const ConfigurationHelp = () => (
           <li>Or update <code>App.jsx</code> with your config object directly.</li>
         </ul>
       </div>
-
       <button 
         onClick={() => window.location.reload()}
         className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
@@ -121,6 +136,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
     { id: 'planner', label: 'Resource Planner', icon: CalendarIcon },
     { id: 'workHub', label: 'Work Hub', icon: Briefcase },
     { id: 'resources', label: 'Team & Assets', icon: Users },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -186,6 +202,7 @@ const Dashboard = ({ tasks, resources }) => {
   const activeTasks = tasks.filter(t => t.status === 'in-progress').length;
   const pendingTasks = tasks.filter(t => t.status === 'pending').length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const totalBurnRate = resources.reduce((acc, curr) => acc + (parseInt(curr.hourlyRate) || 0), 0);
   
   return (
     <div className="space-y-6">
@@ -194,7 +211,7 @@ const Dashboard = ({ tasks, resources }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Resources" value={resources.length} change={12} icon={Users} color="bg-blue-500" />
         <StatCard title="Active Tasks" value={activeTasks} change={5} icon={Clock} color="bg-amber-500" />
-        <StatCard title="Completed" value={completedTasks} change={24} icon={CheckCircle2} color="bg-emerald-500" />
+        <StatCard title="Total Burn Rate/Hr" value={`$${totalBurnRate}`} change={8} icon={DollarSign} color="bg-emerald-500" />
         <StatCard title="Pending Review" value={pendingTasks} change={-2} icon={AlertCircle} color="bg-purple-500" />
       </div>
 
@@ -211,7 +228,7 @@ const Dashboard = ({ tasks, resources }) => {
                   }`} />
                   <div>
                     <p className="font-medium text-slate-800">{task.title}</p>
-                    <p className="text-xs text-slate-500">{new Date(task.createdAt?.seconds * 1000 || Date.now()).toLocaleDateString()}</p>
+                    <p className="text-xs text-slate-500">{task.clientName || 'Internal'}</p>
                   </div>
                 </div>
                 <span className="text-xs font-medium px-2 py-1 bg-slate-100 rounded-md text-slate-600">
@@ -232,7 +249,10 @@ const Dashboard = ({ tasks, resources }) => {
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
                     {res.name.substring(0, 2).toUpperCase()}
                   </div>
-                  <span className="text-sm font-medium text-slate-700">{res.name}</span>
+                  <div>
+                    <span className="block text-sm font-medium text-slate-700">{res.name}</span>
+                    <span className="block text-xs text-slate-500">{res.role} • ${res.hourlyRate}/hr</span>
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-24 bg-slate-100 rounded-full h-2">
@@ -256,6 +276,7 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskStatus, setNewTaskStatus] = useState('pending');
   const [newTaskResource, setNewTaskResource] = useState('');
+  const [newTaskClient, setNewTaskClient] = useState('');
 
   const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
 
@@ -266,9 +287,11 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
       title: newTaskTitle,
       status: newTaskStatus,
       resourceId: newTaskResource,
+      clientName: newTaskClient || 'Internal',
       createdAt: serverTimestamp(),
     });
     setNewTaskTitle('');
+    setNewTaskClient('');
     setIsModalOpen(false);
   };
 
@@ -324,7 +347,11 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
                 <LogOut size={16} />
               </button>
             </div>
-            <h3 className="font-semibold text-slate-800 mb-2 truncate" title={task.title}>{task.title}</h3>
+            <h3 className="font-semibold text-slate-800 mb-1 truncate" title={task.title}>{task.title}</h3>
+            <div className="flex items-center space-x-1 mb-2">
+              <Building2 size={12} className="text-slate-400"/>
+              <span className="text-xs text-slate-500 font-medium">{task.clientName || 'Internal'}</span>
+            </div>
             
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
               <div className="flex items-center space-x-2">
@@ -369,6 +396,16 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="Enter task description"
                   required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Client Name</label>
+                <input
+                  type="text"
+                  value={newTaskClient}
+                  onChange={(e) => setNewTaskClient(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="e.g. Acme Corp (Optional)"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -423,12 +460,17 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
 
 const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
   const [newResName, setNewResName] = useState('');
-  const [newResRole, setNewResRole] = useState('Developer');
+  const [newResRole, setNewResRole] = useState(SAMPLE_ROLES[0].title);
+  const [newResRate, setNewResRate] = useState(SAMPLE_ROLES[0].rate);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!newResName.trim()) return;
-    onAddResource({ name: newResName, role: newResRole });
+    onAddResource({ 
+      name: newResName, 
+      role: newResRole, 
+      hourlyRate: parseInt(newResRate) || 0 
+    });
     setNewResName('');
   };
 
@@ -443,27 +485,41 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-semibold mb-4">Add New Resource</h3>
-        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4">
-          <input 
-            type="text" 
-            placeholder="Name" 
-            value={newResName}
-            onChange={(e) => setNewResName(e.target.value)}
-            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-          <select 
-            value={newResRole}
-            onChange={(e) => setNewResRole(e.target.value)}
-            className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-          >
-            <option>Developer</option>
-            <option>Designer</option>
-            <option>Manager</option>
-            <option>Analyst</option>
-            <option>Equipment</option>
-          </select>
-          <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
-            Add Resource
+        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Name</label>
+            <input 
+              type="text" 
+              placeholder="e.g. John Doe" 
+              value={newResName}
+              onChange={(e) => setNewResName(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          <div className="w-full md:w-48">
+             <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Role</label>
+             <select 
+              value={newResRole}
+              onChange={(e) => setNewResRole(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
+              {SAMPLE_ROLES.map(r => (
+                <option key={r.title} value={r.title}>{r.title}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-full md:w-32">
+            <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Rate ($/hr)</label>
+            <input 
+              type="number" 
+              value={newResRate}
+              onChange={(e) => setNewResRate(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          
+          <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full md:w-auto">
+            Add
           </button>
         </form>
       </div>
@@ -474,6 +530,7 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
             <tr>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</th>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
@@ -486,6 +543,9 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                     {res.role}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-slate-600 font-mono">
+                  ${res.hourlyRate}/hr
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center">
@@ -505,7 +565,7 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
             ))}
             {resources.length === 0 && (
                <tr>
-                 <td colSpan="4" className="px-6 py-8 text-center text-slate-400">
+                 <td colSpan="5" className="px-6 py-8 text-center text-slate-400">
                    No resources found. Add one above.
                  </td>
                </tr>
@@ -517,6 +577,73 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
   );
 };
 
+const SettingsView = ({ onSeedData, isSeeding }) => {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-slate-800">Settings & Administration</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center space-x-3 mb-4">
+             <div className="bg-blue-100 p-2 rounded-lg">
+                <Database className="text-blue-600 w-6 h-6" />
+             </div>
+             <h3 className="text-lg font-bold text-slate-800">Test Data Seeder</h3>
+          </div>
+          <p className="text-slate-600 mb-6 text-sm">
+            Generate dummy clients, resources, and tasks to test the application extensively. 
+            This uses a predefined list of titles and real-world rates.
+          </p>
+          
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+             <p className="text-xs font-semibold uppercase text-slate-500 mb-2">Will Generate:</p>
+             <ul className="text-sm text-slate-700 space-y-1 list-disc list-inside">
+               <li>10 Random Resources (Devs, PMs, QA)</li>
+               <li>Each with specific hourly rates</li>
+               <li>20 Random Tasks assigned to them</li>
+               <li>Tasks linked to Dummy Clients (Acme, Globex, etc)</li>
+             </ul>
+          </div>
+
+          <button 
+            onClick={onSeedData}
+            disabled={isSeeding}
+            className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+              isSeeding 
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            {isSeeding ? (
+              <>
+                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                <span>Generating Data...</span>
+              </>
+            ) : (
+              <>
+                <Database size={18} />
+                <span>Generate Test Data</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm opacity-60">
+           <div className="flex items-center space-x-3 mb-4">
+             <div className="bg-slate-100 p-2 rounded-lg">
+                <DollarSign className="text-slate-500 w-6 h-6" />
+             </div>
+             <h3 className="text-lg font-bold text-slate-800">Currency & Formatting</h3>
+          </div>
+          <p className="text-slate-500 text-sm">
+             Global settings for currency display and date formatting are coming soon.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+};
+
 // --- Main App Component ---
 
 export default function App() {
@@ -525,6 +652,7 @@ export default function App() {
   const [resources, setResources] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   // Authentication
   useEffect(() => {
@@ -602,6 +730,61 @@ export default function App() {
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id));
   };
 
+  // Seeding Logic
+  const seedData = async () => {
+    if (!user) return;
+    setIsSeeding(true);
+    
+    try {
+      // 1. Create Resources
+      const createdResourceIds = [];
+      const batchPromises = [];
+      
+      for (let i = 0; i < 10; i++) {
+        const randomRole = SAMPLE_ROLES[Math.floor(Math.random() * SAMPLE_ROLES.length)];
+        const randomFirst = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+        const randomLast = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+        
+        const resData = {
+          name: `${randomFirst} ${randomLast}`,
+          role: randomRole.title,
+          hourlyRate: randomRole.rate
+        };
+        
+        // We do sequential awaits here to capture IDs easily for the next step, 
+        // in a production app we might use batching differently.
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'), resData);
+        createdResourceIds.push(docRef.id);
+      }
+
+      // 2. Create Tasks assigned to those resources
+      for (let i = 0; i < 20; i++) {
+        const randomResId = createdResourceIds[Math.floor(Math.random() * createdResourceIds.length)];
+        const randomClient = SAMPLE_CLIENTS[Math.floor(Math.random() * SAMPLE_CLIENTS.length)];
+        const statuses = ['pending', 'in-progress', 'completed'];
+        
+        const taskData = {
+          title: `${randomClient} Project - Phase ${Math.floor(Math.random() * 5) + 1}`,
+          status: statuses[Math.floor(Math.random() * statuses.length)],
+          resourceId: randomResId,
+          clientName: randomClient,
+          createdAt: serverTimestamp()
+        };
+
+        batchPromises.push(addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), taskData));
+      }
+
+      await Promise.all(batchPromises);
+      alert("Test data generated successfully!");
+      setActiveTab('workHub'); // Move them to see the data
+    } catch (error) {
+      console.error("Seeding error:", error);
+      alert("Failed to generate data.");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   if (!auth) return <ConfigurationHelp />;
   if (loading) return <LoadingScreen />;
 
@@ -626,6 +809,10 @@ export default function App() {
             onAddResource={addResource} 
             onDeleteResource={deleteResource} 
           />
+        );
+      case 'settings':
+        return (
+          <SettingsView onSeedData={seedData} isSeeding={isSeeding} />
         );
       case 'planner':
         return (
@@ -661,7 +848,8 @@ export default function App() {
            {[
              { id: 'dashboard', icon: BarChart3 },
              { id: 'workHub', icon: Briefcase },
-             { id: 'resources', icon: Users }
+             { id: 'resources', icon: Users },
+             { id: 'settings', icon: Settings }
            ].map(item => {
              const Icon = item.icon;
              return (
