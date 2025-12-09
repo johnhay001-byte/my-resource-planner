@@ -24,7 +24,11 @@ import {
   Flag,
   List,
   Kanban,
-  GanttChart
+  GanttChart,
+  Sparkles,
+  ArrowRight,
+  TrendingDown,
+  UserPlus
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -43,7 +47,8 @@ import {
   doc, 
   updateDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  writeBatch
 } from 'firebase/firestore';
 
 // --- Firebase Initialization ---
@@ -53,16 +58,7 @@ const getFirebaseConfig = () => {
     if (typeof __firebase_config !== 'undefined') {
       return JSON.parse(__firebase_config);
     }
-    if (import.meta.env?.VITE_FIREBASE_API_KEY) {
-      return {
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID
-      };
-    }
+    return null;
   } catch (e) {
     console.warn("Error parsing firebase config", e);
   }
@@ -80,13 +76,21 @@ if (typeof __app_id !== 'undefined' && __app_id) {
 }
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-// --- Helper Data for Seeding (DISABLED FOR SPRINT 1) ---
+// --- Helper Functions ---
 
-const SAMPLE_ROLES = [
-  { title: 'Senior Developer', rate: 150 },
-  { title: 'Mid-Level Developer', rate: 100 },
-  // ... existing roles hidden to prevent pollution
-];
+const formatDate = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const getDaysArray = (start, end) => {
+  const arr = [];
+  for(let dt=new Date(start); dt<=end; dt.setDate(dt.getDate()+1)){
+      arr.push(new Date(dt));
+  }
+  return arr;
+};
 
 // --- Components ---
 
@@ -100,16 +104,8 @@ const ConfigurationHelp = () => (
         <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
       </div>
       <p className="text-slate-600 mb-6 leading-relaxed">
-        The application could not connect to Firebase. This usually happens because the configuration keys are missing.
+        The application could not connect to Firebase. 
       </p>
-      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
-        <h3 className="font-semibold text-slate-700 mb-2 text-sm">How to fix:</h3>
-        <ul className="list-disc list-inside text-sm text-slate-600 space-y-2">
-          <li>Create a <code>.env.local</code> file in your project root.</li>
-          <li>Add your Firebase keys (VITE_FIREBASE_API_KEY, etc).</li>
-          <li>Or update <code>App.jsx</code> with your config object directly.</li>
-        </ul>
-      </div>
       <button 
         onClick={() => window.location.reload()}
         className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
@@ -130,6 +126,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'workHub', label: 'Work Hub', icon: Briefcase },
+    { id: 'enrichment', label: 'Enrichment', icon: Sparkles },
     { id: 'resources', label: 'Team & Assets', icon: Users },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -158,7 +155,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Icon size={20} />
+              <Icon size={20} className={item.id === 'enrichment' ? 'text-purple-400' : ''} />
               <span className="font-medium">{item.label}</span>
             </button>
           );
@@ -167,11 +164,11 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
 
       <div className="p-4 border-t border-slate-700">
         <div className="bg-slate-800 rounded-xl p-4">
-          <p className="text-xs text-slate-400 mb-1">Sprint 1: Recovery</p>
+          <p className="text-xs text-slate-400 mb-1">Sprint 2: Optimization</p>
           <div className="w-full bg-slate-700 rounded-full h-2 mb-2">
-            <div className="bg-blue-500 h-2 rounded-full w-[25%]"></div>
+            <div className="bg-purple-500 h-2 rounded-full w-[65%]"></div>
           </div>
-          <p className="text-xs text-right text-slate-400">Phase 1/3</p>
+          <p className="text-xs text-right text-slate-400">Phase 2/3</p>
         </div>
       </div>
     </div>
@@ -198,7 +195,6 @@ const Dashboard = ({ tasks, resources }) => {
   const programs = tasks.filter(t => t.type === 'program').length;
   const projects = tasks.filter(t => t.type === 'project').length;
   
-  // Calculate average rate simply for dashboard metric
   const totalBurnRate = resources.reduce((acc, curr) => acc + (parseInt(curr.hourlyRate) || 0), 0);
   
   return (
@@ -244,6 +240,120 @@ const Dashboard = ({ tasks, resources }) => {
   );
 };
 
+// --- Enrichment Feature ---
+
+const EnrichmentView = ({ tasks, resources, onUpdateTask }) => {
+  const [recommendations, setRecommendations] = useState([]);
+
+  useEffect(() => {
+    // Artificial Intelligence "Simulation" for Enrichment
+    const generateInsights = () => {
+      const insights = [];
+      
+      // 1. Unassigned Task Optimization
+      const unassignedTasks = tasks.filter(t => !t.resourceId && t.type === 'task' && t.status !== 'completed');
+      unassignedTasks.forEach(task => {
+        // Simple logic: Find cheapest resource
+        const sortedResources = [...resources].sort((a, b) => a.hourlyRate - b.hourlyRate);
+        const bestMatch = sortedResources[0];
+        
+        if (bestMatch) {
+          insights.push({
+            id: `assign-${task.id}`,
+            type: 'assignment',
+            title: 'Unassigned Task Opportunity',
+            description: `"${task.title}" is currently unassigned. Assigning ${bestMatch.name} could save budget due to their competitive rate ($${bestMatch.hourlyRate}/hr).`,
+            action: 'Assign Resource',
+            icon: UserPlus,
+            color: 'text-blue-600',
+            bgColor: 'bg-blue-50',
+            taskId: task.id,
+            resourceId: bestMatch.id
+          });
+        }
+      });
+
+      // 2. Cost Optimization (High Rate on Simple Task)
+      const assignedTasks = tasks.filter(t => t.resourceId && t.type === 'task');
+      assignedTasks.forEach(task => {
+        const resource = resources.find(r => r.id === task.resourceId);
+        if (resource && resource.hourlyRate > 150) {
+           // Find a cheaper alternative
+           const cheaper = resources.find(r => r.hourlyRate < 100 && r.role === resource.role);
+           if (cheaper) {
+             insights.push({
+               id: `optimize-${task.id}`,
+               type: 'optimization',
+               title: 'Budget Optimization',
+               description: `${resource.name} ($${resource.hourlyRate}/hr) is assigned to "${task.title}". Switching to ${cheaper.name} ($${cheaper.hourlyRate}/hr) could reduce costs by ${(resource.hourlyRate - cheaper.hourlyRate)/resource.hourlyRate * 100}%.`,
+               action: 'Swap Resource',
+               icon: TrendingDown,
+               color: 'text-emerald-600',
+               bgColor: 'bg-emerald-50',
+               taskId: task.id,
+               resourceId: cheaper.id
+             });
+           }
+        }
+      });
+
+      setRecommendations(insights);
+    };
+
+    generateInsights();
+  }, [tasks, resources]);
+
+  const handleApply = (rec) => {
+    onUpdateTask(rec.taskId, { resourceId: rec.resourceId });
+    setRecommendations(prev => prev.filter(r => r.id !== rec.id));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <Sparkles className="text-purple-600" />
+            Enrichment Engine
+          </h2>
+          <p className="text-slate-500 text-sm">AI-driven insights to optimize your resource allocation.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {recommendations.length === 0 ? (
+          <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-500">
+            <CheckCircle2 size={48} className="mx-auto mb-4 text-emerald-500 opacity-50" />
+            <h3 className="text-lg font-medium">All Systems Optimized</h3>
+            <p>No new enrichment opportunities found at this time.</p>
+          </div>
+        ) : (
+          recommendations.map(rec => (
+            <div key={rec.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className={`p-3 rounded-full ${rec.bgColor}`}>
+                  <rec.icon className={`${rec.color}`} size={24} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800">{rec.title}</h4>
+                  <p className="text-slate-600 text-sm mt-1 max-w-2xl">{rec.description}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleApply(rec)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+              >
+                {rec.action}
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- Work Hub Components ---
 
 const WorkItemIcon = ({ type, isMilestone }) => {
@@ -263,8 +373,9 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
   const [resourceId, setResourceId] = useState('');
   const [isMilestone, setIsMilestone] = useState(false);
   const [clientName, setClientName] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0]);
 
-  // Filter potential parents based on selected type
   const potentialParents = useMemo(() => {
     if (type === 'project') return items.filter(i => i.type === 'program');
     if (type === 'task') return items.filter(i => i.type === 'project' || i.type === 'program');
@@ -281,10 +392,11 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
       resourceId,
       isMilestone,
       clientName,
+      startDate,
+      endDate,
       createdAt: serverTimestamp()
     });
     onClose();
-    // Reset form
     setTitle('');
     setType('task');
     setParentId('');
@@ -311,7 +423,6 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
                 <option value="task">Task</option>
               </select>
             </div>
-            
             {(type === 'task' || type === 'project') && (
                <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Flag As</label>
@@ -340,7 +451,6 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
             />
           </div>
 
-          {/* Parent Selector - Only show if valid parents exist */}
           {potentialParents.length > 0 && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Parent (Optional)</label>
@@ -358,6 +468,27 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
               </select>
             </div>
           )}
+
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+             </div>
+             <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+             </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
              <div>
@@ -409,23 +540,21 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
 const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) => {
   const [viewMode, setViewMode] = useState('list'); // list, board, calendar, gantt
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
 
   // --- Views ---
 
   const ListView = () => {
-    // 1. Build Tree Hierarchy in Memory
     const rootItems = tasks.filter(t => !t.parentId);
     
     const renderRow = (item, level = 0) => {
        const children = tasks.filter(t => t.parentId === item.id);
-       const hasChildren = children.length > 0;
        
        return (
          <React.Fragment key={item.id}>
            <tr className="hover:bg-slate-50 border-b border-slate-100 last:border-0 group">
              <td className="py-3 px-4">
                <div className="flex items-center" style={{ paddingLeft: `${level * 24}px` }}>
-                 {/* Visual connector lines could go here */}
                  <div className="mr-2 opacity-70">
                    <WorkItemIcon type={item.type || 'task'} isMilestone={item.isMilestone} />
                  </div>
@@ -439,7 +568,8 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
                   {item.type || 'task'}
                 </span>
              </td>
-             <td className="py-3 px-4 text-xs text-slate-500">{item.clientName || '-'}</td>
+             <td className="py-3 px-4 text-xs text-slate-500">{item.startDate}</td>
+             <td className="py-3 px-4 text-xs text-slate-500">{item.endDate}</td>
              <td className="py-3 px-4">
                 <div className="flex items-center space-x-2">
                    {item.resourceId && (
@@ -473,13 +603,14 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
     };
 
     return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+        <table className="w-full text-left min-w-[800px]">
           <thead className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase">
             <tr>
               <th className="py-3 px-4 font-semibold w-1/3">Item Name</th>
               <th className="py-3 px-4 font-semibold">Type</th>
-              <th className="py-3 px-4 font-semibold">Client</th>
+              <th className="py-3 px-4 font-semibold">Start</th>
+              <th className="py-3 px-4 font-semibold">End</th>
               <th className="py-3 px-4 font-semibold">Assignee</th>
               <th className="py-3 px-4 font-semibold">Status</th>
               <th className="py-3 px-4 font-semibold text-right">Actions</th>
@@ -487,7 +618,7 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
           </thead>
           <tbody>
             {rootItems.length > 0 ? rootItems.map(item => renderRow(item)) : (
-              <tr><td colSpan="6" className="py-8 text-center text-slate-400">No work items found. Add a Program or Project to start.</td></tr>
+              <tr><td colSpan="7" className="py-8 text-center text-slate-400">No work items found. Add a Program or Project to start.</td></tr>
             )}
           </tbody>
         </table>
@@ -496,22 +627,49 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
   };
 
   const BoardView = () => {
-    // For Board view, we might flatten the list or just show tasks. 
-    // For Sprint 1, let's show everything flattened by status.
     const columns = ['pending', 'in-progress', 'completed'];
+
+    const handleDragStart = (e, taskId) => {
+      e.dataTransfer.setData('taskId', taskId);
+      setDraggedTaskId(taskId);
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+    };
+
+    const handleDrop = (e, status) => {
+      e.preventDefault();
+      const taskId = e.dataTransfer.getData('taskId');
+      if (taskId) {
+        onUpdateTask(taskId, { status });
+      }
+      setDraggedTaskId(null);
+    };
+
     return (
       <div className="flex h-full gap-4 overflow-x-auto pb-4">
         {columns.map(status => (
-          <div key={status} className="flex-1 min-w-[300px] bg-slate-100 rounded-xl p-3 flex flex-col">
+          <div 
+            key={status} 
+            className="flex-1 min-w-[300px] bg-slate-100 rounded-xl p-3 flex flex-col transition-colors duration-200"
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, status)}
+          >
             <div className="flex items-center justify-between mb-3 px-1">
                <h4 className="font-semibold text-slate-700 capitalize">{status.replace('-', ' ')}</h4>
                <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full text-slate-600">
                  {tasks.filter(t => t.status === status).length}
                </span>
             </div>
-            <div className="space-y-3 overflow-y-auto flex-1">
+            <div className="space-y-3 overflow-y-auto flex-1 min-h-[100px]">
               {tasks.filter(t => t.status === status).map(item => (
-                <div key={item.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow group">
+                <div 
+                  key={item.id} 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, item.id)}
+                  className={`bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-move group ${draggedTaskId === item.id ? 'opacity-50 ring-2 ring-blue-500' : ''}`}
+                >
                   <div className="flex items-start justify-between mb-2">
                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide border ${
                         item.type === 'program' ? 'bg-purple-50 text-purple-700 border-purple-100' :
@@ -523,7 +681,7 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
                      {item.isMilestone && <Flag size={12} className="text-red-500" />}
                   </div>
                   <h5 className="font-medium text-slate-800 text-sm mb-1">{item.title}</h5>
-                  {item.clientName && <div className="flex items-center text-xs text-slate-400 mb-2"><Building2 size={10} className="mr-1"/>{item.clientName}</div>}
+                  {item.endDate && <div className="flex items-center text-xs text-slate-400 mb-2"><Clock size={10} className="mr-1"/>{formatDate(item.endDate)}</div>}
                   
                   <div className="flex items-center justify-between pt-2 border-t border-slate-50 mt-2">
                      <div className="flex items-center space-x-1">
@@ -549,13 +707,135 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
     );
   };
 
-  const PlaceholderView = ({ name, icon: Icon }) => (
-    <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-      <Icon size={48} className="mb-4 opacity-20" />
-      <h3 className="text-xl font-medium text-slate-600">{name} View</h3>
-      <p>Coming in Sprint 2: Time-based visualization of your data.</p>
-    </div>
-  );
+  const CalendarView = () => {
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    const empties = Array.from({ length: firstDay }, (_, i) => i);
+
+    const getItemsForDate = (day) => {
+      const dateStr = new Date(today.getFullYear(), today.getMonth(), day).toISOString().split('T')[0];
+      return tasks.filter(t => t.endDate === dateStr);
+    };
+
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm h-full flex flex-col">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="font-bold text-lg">{today.toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
+          <div className="text-xs text-slate-400">Due Dates</div>
+        </div>
+        <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+            <div key={d} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto">
+          {empties.map(e => <div key={`empty-${e}`} className="border-b border-r border-slate-100 bg-slate-50/30"></div>)}
+          {days.map(day => {
+             const dayItems = getItemsForDate(day);
+             return (
+              <div key={day} className="min-h-[100px] p-2 border-b border-r border-slate-100 hover:bg-slate-50 relative group">
+                <span className={`text-xs font-medium ${day === today.getDate() ? 'bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : 'text-slate-500'}`}>{day}</span>
+                <div className="mt-1 space-y-1">
+                  {dayItems.map(item => (
+                    <div key={item.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate ${
+                      item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {item.title}
+                    </div>
+                  ))}
+                </div>
+              </div>
+             );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const GanttView = () => {
+    // Simple Gantt implementation
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1); // Start of current month
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0); // End of next month
+    
+    // Calculate total days for width
+    const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    
+    // Filter out items without dates for the chart
+    const validTasks = tasks.filter(t => t.startDate && t.endDate);
+
+    const getPosition = (dateStr) => {
+      const date = new Date(dateStr);
+      const diff = Math.ceil((date - startDate) / (1000 * 60 * 60 * 24));
+      return Math.max(0, (diff / totalDays) * 100);
+    };
+
+    const getWidth = (startStr, endStr) => {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      return Math.max(1, (diff / totalDays) * 100);
+    };
+
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
+        <div className="p-4 border-b border-slate-200">
+           <h3 className="font-bold text-slate-800">Timeline</h3>
+        </div>
+        <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar */}
+          <div className="w-48 md:w-64 border-r border-slate-200 overflow-y-auto bg-slate-50">
+            <div className="h-10 border-b border-slate-200 sticky top-0 bg-slate-50 z-10"></div>
+            {validTasks.map(task => (
+              <div key={task.id} className="h-12 flex items-center px-4 border-b border-slate-100 text-xs text-slate-700 truncate" title={task.title}>
+                {task.title}
+              </div>
+            ))}
+          </div>
+          
+          {/* Chart Area */}
+          <div className="flex-1 overflow-x-auto overflow-y-auto relative">
+             <div className="h-10 border-b border-slate-200 bg-slate-50 sticky top-0 z-10 min-w-[800px] flex">
+                {/* Simple months header */}
+                <div className="flex-1 text-xs text-slate-500 font-medium p-2 border-r border-slate-200">
+                  {startDate.toLocaleString('default', { month: 'long' })}
+                </div>
+                <div className="flex-1 text-xs text-slate-500 font-medium p-2 border-r border-slate-200">
+                  {new Date(startDate.getFullYear(), startDate.getMonth()+1, 1).toLocaleString('default', { month: 'long' })}
+                </div>
+             </div>
+             
+             <div className="relative min-w-[800px]">
+                {/* Grid Lines */}
+                <div className="absolute inset-0 flex">
+                   <div className="flex-1 border-r border-slate-100"></div>
+                   <div className="flex-1 border-r border-slate-100"></div>
+                </div>
+
+                {validTasks.map(task => {
+                   const left = getPosition(task.startDate);
+                   const width = getWidth(task.startDate, task.endDate);
+                   return (
+                     <div key={task.id} className="h-12 border-b border-slate-50 relative flex items-center">
+                        <div 
+                          className={`absolute h-6 rounded-full shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden ${
+                            task.type === 'program' ? 'bg-purple-500' : task.type === 'project' ? 'bg-amber-500' : 'bg-blue-500'
+                          }`}
+                          style={{ left: `${left}%`, width: `${width}%`, minWidth: '20px' }}
+                        >
+                          {width > 5 && task.title}
+                        </div>
+                     </div>
+                   );
+                })}
+             </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -584,8 +864,8 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
       <div className="flex-1 overflow-hidden">
         {viewMode === 'list' && <ListView />}
         {viewMode === 'board' && <BoardView />}
-        {viewMode === 'calendar' && <PlaceholderView name="Calendar" icon={CalendarIcon} />}
-        {viewMode === 'gantt' && <PlaceholderView name="Gantt & Timeline" icon={GanttChart} />}
+        {viewMode === 'calendar' && <CalendarView />}
+        {viewMode === 'gantt' && <GanttView />}
       </div>
 
       <AddWorkItemModal 
@@ -593,14 +873,11 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
         onClose={() => setIsModalOpen(false)} 
         onAdd={onAddTask} 
         resources={resources}
-        items={tasks} // Pass all items to determine potential parents
+        items={tasks} 
       />
     </div>
   );
 };
-
-// ... ResourceList and SettingsView components remain similar ...
-// ... I will render SettingsView but with Seeder disabled logic
 
 const SettingsView = ({ onSeedData, isSeeding }) => {
   return (
@@ -610,21 +887,23 @@ const SettingsView = ({ onSeedData, isSeeding }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center space-x-3 mb-4">
-             <div className="bg-slate-100 p-2 rounded-lg">
-                <Database className="text-slate-400 w-6 h-6" />
+             <div className="bg-blue-100 p-2 rounded-lg">
+                <Database className="text-blue-600 w-6 h-6" />
              </div>
              <h3 className="text-lg font-bold text-slate-800">Test Data Seeder</h3>
           </div>
           <p className="text-slate-600 mb-6 text-sm">
-            <span className="font-bold text-red-500">DISABLED:</span> The data seeder has been disabled to prevent pollution of your live production data. 
+            Populate the application with sample resources, projects, and tasks to test the visualization features.
+            <br/><span className="text-xs text-amber-600 font-semibold mt-1 block">Note: This will add data, not replace existing data.</span>
           </p>
           
           <button 
-            disabled={true}
-            className="w-full py-3 rounded-lg font-medium bg-slate-100 text-slate-400 cursor-not-allowed flex items-center justify-center space-x-2"
+            onClick={onSeedData}
+            disabled={isSeeding}
+            className="w-full py-3 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-             <Database size={18} />
-             <span>Generation Disabled</span>
+             {isSeeding ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <Database size={18} />}
+             <span>{isSeeding ? 'Generating Data...' : 'Generate Sample Data'}</span>
           </button>
         </div>
       </div>
@@ -634,8 +913,8 @@ const SettingsView = ({ onSeedData, isSeeding }) => {
 
 const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
   const [newResName, setNewResName] = useState('');
-  const [newResRole, setNewResRole] = useState(SAMPLE_ROLES[0].title);
-  const [newResRate, setNewResRate] = useState(SAMPLE_ROLES[0].rate);
+  const [newResRole, setNewResRole] = useState('Developer');
+  const [newResRate, setNewResRate] = useState(100);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -789,9 +1068,7 @@ export default function App() {
   useEffect(() => {
     if (!user || !db) return;
 
-    // Use a single collection based on user ID for data privacy in this demo
     const resourcesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'resources');
-    // Using orderBy createdAt to keep list stable
     const tasksRef = query(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), orderBy('createdAt', 'desc'));
 
     const unsubResources = onSnapshot(query(resourcesRef), 
@@ -836,9 +1113,82 @@ export default function App() {
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id));
   };
 
-  // Seeding Logic (REMOVED)
   const seedData = async () => {
-    // Disabled
+    if (!user || !db) return;
+    setIsSeeding(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // Sample Resources
+      const sampleResources = [
+        { name: 'Sarah Connor', role: 'Senior Dev', hourlyRate: 160 },
+        { name: 'John Smith', role: 'Project Manager', hourlyRate: 140 },
+        { name: 'Emily Chen', role: 'Designer', hourlyRate: 110 },
+        { name: 'Michael Ross', role: 'Junior Dev', hourlyRate: 85 },
+        { name: 'Jessica Day', role: 'QA Engineer', hourlyRate: 90 }
+      ];
+
+      const resRefs = [];
+      for (const res of sampleResources) {
+        const ref = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'));
+        batch.set(ref, res);
+        resRefs.push({ id: ref.id, ...res });
+      }
+
+      // Sample Tasks/Projects
+      const now = new Date();
+      const nextWeek = new Date(now); nextWeek.setDate(now.getDate() + 7);
+      const nextMonth = new Date(now); nextMonth.setDate(now.getDate() + 30);
+      
+      const sampleTasks = [
+        { title: 'Digital Transformation', type: 'program', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0] },
+        { title: 'Website Redesign', type: 'project', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 0 },
+        { title: 'Mobile App Core', type: 'project', status: 'pending', startDate: nextWeek.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0], parentIndex: 0 },
+        { title: 'Design Home Page', type: 'task', status: 'completed', resourceIndex: 2, startDate: now.toISOString().split('T')[0], endDate: now.toISOString().split('T')[0], parentIndex: 1 },
+        { title: 'Implement Login API', type: 'task', status: 'in-progress', resourceIndex: 0, startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
+        { title: 'Setup CI/CD', type: 'task', status: 'pending', resourceIndex: 3, startDate: nextWeek.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
+      ];
+
+      // Add parent items first to get IDs
+      const programRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+      batch.set(programRef, { 
+        ...sampleTasks[0], 
+        createdAt: serverTimestamp() 
+      });
+
+      const projectRef1 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+      batch.set(projectRef1, { 
+        ...sampleTasks[1], 
+        parentId: programRef.id,
+        createdAt: serverTimestamp() 
+      });
+
+      const projectRef2 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+      batch.set(projectRef2, { 
+        ...sampleTasks[2], 
+        parentId: programRef.id,
+        createdAt: serverTimestamp() 
+      });
+
+      // Add leaf tasks
+      // Task 1: Design (Linked to Project 1)
+      const task1 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+      batch.set(task1, { ...sampleTasks[3], parentId: projectRef1.id, resourceId: resRefs[2].id, createdAt: serverTimestamp() });
+      
+      // Task 2: Login API (Linked to Project 1)
+      const task2 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+      batch.set(task2, { ...sampleTasks[4], parentId: projectRef1.id, resourceId: resRefs[0].id, createdAt: serverTimestamp() });
+
+      // Task 3: CI/CD (Linked to Project 1) - Intentionally assign expensive Senior Dev (Sarah) to simple task for Enrichment demo
+      const task3 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+      batch.set(task3, { ...sampleTasks[5], parentId: projectRef1.id, resourceId: resRefs[0].id, createdAt: serverTimestamp() });
+
+      await batch.commit();
+    } catch (e) {
+      console.error("Seeding error:", e);
+    } finally {
+      setIsSeeding(false);
+    }
   };
 
   if (!auth) return <ConfigurationHelp />;
@@ -858,6 +1208,14 @@ export default function App() {
             onDeleteTask={deleteTask}
           />
         );
+      case 'enrichment':
+        return (
+          <EnrichmentView 
+            tasks={tasks} 
+            resources={resources} 
+            onUpdateTask={updateTask}
+          />
+        );
       case 'resources':
         return (
           <ResourceList 
@@ -869,14 +1227,6 @@ export default function App() {
       case 'settings':
         return (
           <SettingsView onSeedData={seedData} isSeeding={isSeeding} />
-        );
-      case 'planner':
-        return (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
-             <CalendarIcon size={64} className="mb-4 opacity-20" />
-             <h3 className="text-xl font-medium text-slate-600">Planner View</h3>
-             <p>This module is currently under development.</p>
-          </div>
         );
       default:
         return <Dashboard tasks={tasks} resources={resources} />;
@@ -904,6 +1254,7 @@ export default function App() {
            {[
              { id: 'dashboard', icon: BarChart3 },
              { id: 'workHub', icon: Briefcase },
+             { id: 'enrichment', icon: Sparkles },
              { id: 'resources', icon: Users },
              { id: 'settings', icon: Settings }
            ].map(item => {
