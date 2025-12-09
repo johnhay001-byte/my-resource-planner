@@ -39,9 +39,11 @@ import {
 
 const getFirebaseConfig = () => {
   try {
+    // 1. Try environment variable injection (if provided by specific platform like generated preview)
     if (typeof __firebase_config !== 'undefined') {
       return JSON.parse(__firebase_config);
     }
+    // 2. Try Vite/Standard Environment Variables (For Vercel/Local)
     if (import.meta.env?.VITE_FIREBASE_API_KEY) {
       return {
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -59,6 +61,8 @@ const getFirebaseConfig = () => {
 };
 
 const firebaseConfig = getFirebaseConfig();
+
+// Initialize services only if config exists
 const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
