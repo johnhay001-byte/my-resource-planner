@@ -30,7 +30,7 @@ import {
   TrendingDown,
   UserPlus
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   onAuthStateChanged, 
@@ -53,10 +53,14 @@ import {
 
 // --- Firebase Initialization ---
 
+// More robust config retrieval
 const getFirebaseConfig = () => {
   try {
     if (typeof __firebase_config !== 'undefined') {
       return JSON.parse(__firebase_config);
+    }
+    if (typeof window !== 'undefined' && window.__firebase_config) {
+      return JSON.parse(window.__firebase_config);
     }
     return null;
   } catch (e) {
@@ -65,10 +69,33 @@ const getFirebaseConfig = () => {
   return null;
 };
 
-const firebaseConfig = getFirebaseConfig();
-const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
-const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
+// Initialize variables
+let app = null;
+let auth = null;
+let db = null;
+
+const initFirebase = () => {
+  const config = getFirebaseConfig();
+  if (config) {
+    try {
+      if (!getApps().length) {
+        app = initializeApp(config);
+      } else {
+        app = getApp();
+      }
+      auth = getAuth(app);
+      db = getFirestore(app);
+      return true;
+    } catch (e) {
+      console.error("Firebase init failed:", e);
+      return false;
+    }
+  }
+  return false;
+};
+
+// Initial attempt
+initFirebase();
 
 let rawAppId = 'default-app-id';
 if (typeof __app_id !== 'undefined' && __app_id) {
@@ -94,7 +121,7 @@ const getDaysArray = (start, end) => {
 
 // --- Components ---
 
-const ConfigurationHelp = () => (
+const ConfigurationHelp = ({ onRetry }) => (
   <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
     <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow-xl border border-red-100">
       <div className="flex items-center space-x-3 mb-6">
@@ -104,10 +131,10 @@ const ConfigurationHelp = () => (
         <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
       </div>
       <p className="text-slate-600 mb-6 leading-relaxed">
-        The application could not connect to Firebase. 
+        The application could not connect to Firebase. This may happen if the environment is still loading.
       </p>
       <button 
-        onClick={() => window.location.reload()}
+        onClick={onRetry}
         className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
       >
         Retry Connection
@@ -1037,9 +1064,18 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
   // Authentication
   useEffect(() => {
+    // Attempt to re-initialize if initially failed
+    if (!auth) {
+       const ready = initFirebase();
+       if (ready) setIsFirebaseReady(true);
+    } else {
+       setIsFirebaseReady(true);
+    }
+
     if (!auth) {
       setLoading(false);
       return;
@@ -1062,7 +1098,7 @@ export default function App() {
       if (currentUser) setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isFirebaseReady]);
 
   // Data Fetching
   useEffect(() => {
@@ -1088,6 +1124,14 @@ export default function App() {
   }, [user]);
 
   // Handlers
+  const handleRetryConnection = () => {
+    const ready = initFirebase();
+    if (ready) {
+      setIsFirebaseReady(true);
+      window.location.reload();
+    }
+  };
+
   const addResource = async (data) => {
     if (!user) return;
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'), data);
@@ -1191,7 +1235,7 @@ export default function App() {
     }
   };
 
-  if (!auth) return <ConfigurationHelp />;
+  if (!auth) return <ConfigurationHelp onRetry={handleRetryConnection} />;
   if (loading) return <LoadingScreen />;
 
   const renderContent = () => {
