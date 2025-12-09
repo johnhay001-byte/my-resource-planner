@@ -36,13 +36,74 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Initialization ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+const getFirebaseConfig = () => {
+  try {
+    if (typeof __firebase_config !== 'undefined') {
+      return JSON.parse(__firebase_config);
+    }
+    if (import.meta.env?.VITE_FIREBASE_API_KEY) {
+      return {
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID
+      };
+    }
+  } catch (e) {
+    console.warn("Error parsing firebase config", e);
+  }
+  return null;
+};
+
+const firebaseConfig = getFirebaseConfig();
+const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
+const auth = app ? getAuth(app) : null;
+const db = app ? getFirestore(app) : null;
+
+// Sanitize appId to ensure it is a valid Firestore path segment (no slashes)
+let rawAppId = 'default-app-id';
+if (typeof __app_id !== 'undefined' && __app_id) {
+  rawAppId = __app_id;
+}
+const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
 // --- Components ---
+
+const ConfigurationHelp = () => (
+  <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow-xl border border-red-100">
+      <div className="flex items-center space-x-3 mb-6">
+        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+          <AlertCircle className="text-red-600 w-6 h-6" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
+      </div>
+      
+      <p className="text-slate-600 mb-6 leading-relaxed">
+        The application could not connect to Firebase. This usually happens because the configuration keys are missing.
+      </p>
+
+      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+        <h3 className="font-semibold text-slate-700 mb-2 text-sm">How to fix:</h3>
+        <ul className="list-disc list-inside text-sm text-slate-600 space-y-2">
+          <li>Create a <code>.env.local</code> file in your project root.</li>
+          <li>Add your Firebase keys (VITE_FIREBASE_API_KEY, etc).</li>
+          <li>Or update <code>App.jsx</code> with your config object directly.</li>
+        </ul>
+      </div>
+
+      <button 
+        onClick={() => window.location.reload()}
+        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+      >
+        Retry Connection
+      </button>
+    </div>
+  </div>
+);
 
 const LoadingScreen = () => (
   <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -101,8 +162,6 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
     </div>
   );
 };
-
-// --- Sub-Components for Views ---
 
 const StatCard = ({ title, value, change, icon: Icon, color }) => (
   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
@@ -465,11 +524,20 @@ export default function App() {
 
   // Authentication
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth error:", error);
       }
     };
     initAuth();
@@ -482,7 +550,7 @@ export default function App() {
 
   // Data Fetching
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db) return;
 
     // Use a single collection based on user ID for data privacy in this demo
     const resourcesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'resources');
@@ -530,6 +598,7 @@ export default function App() {
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id));
   };
 
+  if (!auth) return <ConfigurationHelp />;
   if (loading) return <LoadingScreen />;
 
   const renderContent = () => {
@@ -589,15 +658,18 @@ export default function App() {
              { id: 'dashboard', icon: BarChart3 },
              { id: 'workHub', icon: Briefcase },
              { id: 'resources', icon: Users }
-           ].map(item => (
-             <button
-               key={item.id}
-               onClick={() => setActiveTab(item.id)}
-               className={`${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}
-             >
-               <item.icon />
-             </button>
-           ))}
+           ].map(item => {
+             const Icon = item.icon;
+             return (
+               <button
+                 key={item.id}
+                 onClick={() => setActiveTab(item.id)}
+                 className={`${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}
+               >
+                 <Icon size={24} />
+               </button>
+             );
+           })}
         </div>
 
         {/* Main Content Area */}
