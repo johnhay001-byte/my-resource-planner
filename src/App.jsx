@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Layout, 
   Users, 
@@ -53,45 +53,54 @@ import {
 
 // --- Firebase Initialization ---
 
-// More robust config retrieval
-const getFirebaseConfig = () => {
-  try {
-    if (typeof __firebase_config !== 'undefined') {
-      return JSON.parse(__firebase_config);
-    }
-    if (typeof window !== 'undefined' && window.__firebase_config) {
-      return JSON.parse(window.__firebase_config);
-    }
-    return null;
-  } catch (e) {
-    console.warn("Error parsing firebase config", e);
-  }
-  return null;
-};
-
 // Initialize variables
 let app = null;
 let auth = null;
 let db = null;
+let initError = null;
+
+const getFirebaseConfig = () => {
+  try {
+    let config = null;
+    if (typeof __firebase_config !== 'undefined') {
+      config = __firebase_config;
+    } else if (typeof window !== 'undefined' && window.__firebase_config) {
+      config = window.__firebase_config;
+    }
+
+    if (!config) return null;
+
+    // Handle both stringified JSON and direct Object
+    return typeof config === 'string' ? JSON.parse(config) : config;
+  } catch (e) {
+    console.error("Config parse error:", e);
+    initError = e.message;
+    return null;
+  }
+};
 
 const initFirebase = () => {
-  const config = getFirebaseConfig();
-  if (config) {
-    try {
-      if (!getApps().length) {
-        app = initializeApp(config);
-      } else {
-        app = getApp();
-      }
-      auth = getAuth(app);
-      db = getFirestore(app);
-      return true;
-    } catch (e) {
-      console.error("Firebase init failed:", e);
+  try {
+    const config = getFirebaseConfig();
+    if (!config) {
+      if (!initError) initError = "Configuration not found in environment.";
       return false;
     }
+
+    if (!getApps().length) {
+      app = initializeApp(config);
+    } else {
+      app = getApp();
+    }
+    auth = getAuth(app);
+    db = getFirestore(app);
+    initError = null;
+    return true;
+  } catch (e) {
+    console.error("Firebase init failed:", e);
+    initError = e.message;
+    return false;
   }
-  return false;
 };
 
 // Initial attempt
@@ -111,17 +120,9 @@ const formatDate = (date) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const getDaysArray = (start, end) => {
-  const arr = [];
-  for(let dt=new Date(start); dt<=end; dt.setDate(dt.getDate()+1)){
-      arr.push(new Date(dt));
-  }
-  return arr;
-};
-
 // --- Components ---
 
-const ConfigurationHelp = ({ onRetry }) => (
+const ConfigurationHelp = ({ onRetry, errorMsg }) => (
   <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
     <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow-xl border border-red-100">
       <div className="flex items-center space-x-3 mb-6">
@@ -130,9 +131,14 @@ const ConfigurationHelp = ({ onRetry }) => (
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
       </div>
-      <p className="text-slate-600 mb-6 leading-relaxed">
-        The application could not connect to Firebase. This may happen if the environment is still loading.
+      <p className="text-slate-600 mb-4 leading-relaxed">
+        The application could not connect to Firebase.
       </p>
+      {errorMsg && (
+        <div className="bg-red-50 p-3 rounded-lg border border-red-100 mb-6">
+          <p className="text-xs font-mono text-red-700 break-words">{errorMsg}</p>
+        </div>
+      )}
       <button 
         onClick={onRetry}
         className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
@@ -143,9 +149,10 @@ const ConfigurationHelp = ({ onRetry }) => (
   </div>
 );
 
-const LoadingScreen = () => (
-  <div className="flex items-center justify-center min-h-screen bg-slate-50">
+const LoadingScreen = ({ message = "Loading..." }) => (
+  <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 space-y-4">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <p className="text-slate-500 text-sm animate-pulse">{message}</p>
   </div>
 );
 
@@ -1065,15 +1072,44 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+  const [currentInitError, setCurrentInitError] = useState(initError);
+
+  // Auto-retry connection logic
+  useEffect(() => {
+    if (isFirebaseReady) return;
+
+    // Try immediately
+    if (initFirebase()) {
+       setIsFirebaseReady(true);
+       return;
+    }
+
+    // Then try every second for 5 seconds
+    let attempts = 0;
+    const interval = setInterval(() => {
+       attempts++;
+       if (initFirebase()) {
+          setIsFirebaseReady(true);
+          setCurrentInitError(null);
+          clearInterval(interval);
+       } else {
+          setCurrentInitError(initError); // Update UI with latest error
+       }
+       
+       if (attempts >= 5) clearInterval(interval);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isFirebaseReady]);
 
   // Authentication
   useEffect(() => {
-    // Attempt to re-initialize if initially failed
-    if (!auth) {
-       const ready = initFirebase();
-       if (ready) setIsFirebaseReady(true);
-    } else {
-       setIsFirebaseReady(true);
+    if (!isFirebaseReady) {
+      // If we gave up retrying and still no auth, stop loading so error screen shows
+      const timeout = setTimeout(() => {
+        if (!auth) setLoading(false);
+      }, 5500); 
+      return () => clearTimeout(timeout);
     }
 
     if (!auth) {
@@ -1125,11 +1161,7 @@ export default function App() {
 
   // Handlers
   const handleRetryConnection = () => {
-    const ready = initFirebase();
-    if (ready) {
-      setIsFirebaseReady(true);
-      window.location.reload();
-    }
+    window.location.reload();
   };
 
   const addResource = async (data) => {
@@ -1235,8 +1267,8 @@ export default function App() {
     }
   };
 
-  if (!auth) return <ConfigurationHelp onRetry={handleRetryConnection} />;
-  if (loading) return <LoadingScreen />;
+  if (!auth) return <ConfigurationHelp onRetry={handleRetryConnection} errorMsg={currentInitError} />;
+  if (loading) return <LoadingScreen message="Establishing secure connection..." />;
 
   const renderContent = () => {
     switch (activeTab) {
