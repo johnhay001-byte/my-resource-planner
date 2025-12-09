@@ -28,7 +28,8 @@ import {
   Sparkles,
   ArrowRight,
   TrendingDown,
-  UserPlus
+  UserPlus,
+  WifiOff
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -122,7 +123,7 @@ const formatDate = (date) => {
 
 // --- Components ---
 
-const ConfigurationHelp = ({ onRetry, errorMsg }) => (
+const ConfigurationHelp = ({ onRetry, onDemoMode, errorMsg }) => (
   <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
     <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow-xl border border-red-100">
       <div className="flex items-center space-x-3 mb-6">
@@ -132,19 +133,28 @@ const ConfigurationHelp = ({ onRetry, errorMsg }) => (
         <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
       </div>
       <p className="text-slate-600 mb-4 leading-relaxed">
-        The application could not connect to Firebase.
+        The application could not connect to the cloud database. You can retry the connection or enter <strong>Demo Mode</strong> to use the application with local storage.
       </p>
       {errorMsg && (
         <div className="bg-red-50 p-3 rounded-lg border border-red-100 mb-6">
           <p className="text-xs font-mono text-red-700 break-words">{errorMsg}</p>
         </div>
       )}
-      <button 
-        onClick={onRetry}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-      >
-        Retry Connection
-      </button>
+      <div className="space-y-3">
+        <button 
+          onClick={onRetry}
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+        >
+          Retry Connection
+        </button>
+        <button 
+          onClick={onDemoMode}
+          className="w-full py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          <WifiOff size={18} />
+          Enter Demo Mode (Offline)
+        </button>
+      </div>
     </div>
   </div>
 );
@@ -156,7 +166,7 @@ const LoadingScreen = ({ message = "Loading..." }) => (
   </div>
 );
 
-const Sidebar = ({ activeTab, setActiveTab }) => {
+const Sidebar = ({ activeTab, setActiveTab, isDemoMode }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'workHub', label: 'Work Hub', icon: Briefcase },
@@ -174,6 +184,11 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
           </div>
           <span>PlanFlow</span>
         </div>
+        {isDemoMode && (
+          <div className="mt-2 px-2 py-1 bg-amber-500/20 border border-amber-500/50 rounded text-amber-500 text-xs font-medium text-center">
+            Demo Mode (Offline)
+          </div>
+        )}
       </div>
       
       <nav className="flex-1 py-6 px-3 space-y-1">
@@ -1073,10 +1088,11 @@ export default function App() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [currentInitError, setCurrentInitError] = useState(initError);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Auto-retry connection logic
   useEffect(() => {
-    if (isFirebaseReady) return;
+    if (isFirebaseReady || isDemoMode) return;
 
     // Try immediately
     if (initFirebase()) {
@@ -1093,17 +1109,25 @@ export default function App() {
           setCurrentInitError(null);
           clearInterval(interval);
        } else {
-          setCurrentInitError(initError); // Update UI with latest error
+          // Only update error message if it's different/new
+          if (initError && initError !== currentInitError) {
+             setCurrentInitError(initError);
+          }
        }
        
        if (attempts >= 5) clearInterval(interval);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isFirebaseReady]);
+  }, [isFirebaseReady, isDemoMode]);
 
   // Authentication
   useEffect(() => {
+    if (isDemoMode) {
+      setLoading(false);
+      return;
+    }
+
     if (!isFirebaseReady) {
       // If we gave up retrying and still no auth, stop loading so error screen shows
       const timeout = setTimeout(() => {
@@ -1134,10 +1158,17 @@ export default function App() {
       if (currentUser) setLoading(false);
     });
     return () => unsubscribe();
-  }, [isFirebaseReady]);
+  }, [isFirebaseReady, isDemoMode]);
 
   // Data Fetching
   useEffect(() => {
+    // Demo Mode Logic
+    if (isDemoMode) {
+      // Initialize with empty arrays or you could seed basic data here if you wanted
+      // We will leave them empty to let the user use the Seeder in Settings
+      return;
+    }
+
     if (!user || !db) return;
 
     const resourcesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'resources');
@@ -1157,53 +1188,127 @@ export default function App() {
       unsubResources();
       unsubTasks();
     };
-  }, [user]);
+  }, [user, isDemoMode]);
 
   // Handlers
   const handleRetryConnection = () => {
     window.location.reload();
   };
 
+  const handleDemoMode = () => {
+    setIsDemoMode(true);
+    setLoading(false);
+    // Optional: Seed some initial data for demo
+    seedData(true);
+  };
+
   const addResource = async (data) => {
+    if (isDemoMode) {
+      setResources(prev => [{ id: `demo-${Date.now()}`, ...data }, ...prev]);
+      return;
+    }
     if (!user) return;
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'), data);
   };
 
   const deleteResource = async (id) => {
+    if (isDemoMode) {
+      setResources(prev => prev.filter(r => r.id !== id));
+      return;
+    }
     if (!user) return;
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'resources', id));
   };
 
   const addTask = async (data) => {
+    if (isDemoMode) {
+      setTasks(prev => [{ id: `demo-${Date.now()}`, ...data }, ...prev]);
+      return;
+    }
     if (!user) return;
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), data);
   };
 
   const updateTask = async (id, data) => {
+    if (isDemoMode) {
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+      return;
+    }
     if (!user) return;
     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id), data);
   };
 
   const deleteTask = async (id) => {
+    if (isDemoMode) {
+      setTasks(prev => prev.filter(t => t.id !== id));
+      return;
+    }
     if (!user) return;
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id));
   };
 
-  const seedData = async () => {
-    if (!user || !db) return;
+  const seedData = async (forceDemo = false) => {
+    if ((!user || !db) && !isDemoMode && !forceDemo) return;
+    
     setIsSeeding(true);
+    
+    // Sample Data
+    const sampleResources = [
+      { name: 'Sarah Connor', role: 'Senior Dev', hourlyRate: 160 },
+      { name: 'John Smith', role: 'Project Manager', hourlyRate: 140 },
+      { name: 'Emily Chen', role: 'Designer', hourlyRate: 110 },
+      { name: 'Michael Ross', role: 'Junior Dev', hourlyRate: 85 },
+      { name: 'Jessica Day', role: 'QA Engineer', hourlyRate: 90 }
+    ];
+
+    const now = new Date();
+    const nextWeek = new Date(now); nextWeek.setDate(now.getDate() + 7);
+    const nextMonth = new Date(now); nextMonth.setDate(now.getDate() + 30);
+    
+    const sampleTasks = [
+      { title: 'Digital Transformation', type: 'program', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0] },
+      { title: 'Website Redesign', type: 'project', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 0 },
+      { title: 'Mobile App Core', type: 'project', status: 'pending', startDate: nextWeek.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0], parentIndex: 0 },
+      { title: 'Design Home Page', type: 'task', status: 'completed', resourceIndex: 2, startDate: now.toISOString().split('T')[0], endDate: now.toISOString().split('T')[0], parentIndex: 1 },
+      { title: 'Implement Login API', type: 'task', status: 'in-progress', resourceIndex: 0, startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
+      { title: 'Setup CI/CD', type: 'task', status: 'pending', resourceIndex: 3, startDate: nextWeek.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
+    ];
+
+    if (isDemoMode || forceDemo) {
+      // Offline Seeding
+      setTimeout(() => {
+        const resWithIds = sampleResources.map((r, i) => ({ id: `demo-res-${i}`, ...r }));
+        setResources(prev => [...prev, ...resWithIds]);
+
+        const tasksWithIds = sampleTasks.map((t, i) => {
+           let parentId = null;
+           let resourceId = '';
+           // Basic linking logic for demo
+           if (t.parentIndex !== undefined) {
+             // This is simplified, assumes order is preserved
+           }
+           // Use simple index matching for demo linking (imperfect but works for display)
+           if (t.resourceIndex !== undefined) resourceId = resWithIds[t.resourceIndex].id;
+           
+           return { id: `demo-task-${i}`, ...t, resourceId };
+        });
+        
+        // Fix parent relationships for demo
+        const programId = tasksWithIds[0].id;
+        tasksWithIds[1].parentId = programId;
+        tasksWithIds[2].parentId = programId;
+        tasksWithIds[3].parentId = tasksWithIds[1].id;
+        tasksWithIds[4].parentId = tasksWithIds[1].id;
+        tasksWithIds[5].parentId = tasksWithIds[1].id;
+
+        setTasks(prev => [...prev, ...tasksWithIds]);
+        setIsSeeding(false);
+      }, 500);
+      return;
+    }
+
     try {
       const batch = writeBatch(db);
-      
-      // Sample Resources
-      const sampleResources = [
-        { name: 'Sarah Connor', role: 'Senior Dev', hourlyRate: 160 },
-        { name: 'John Smith', role: 'Project Manager', hourlyRate: 140 },
-        { name: 'Emily Chen', role: 'Designer', hourlyRate: 110 },
-        { name: 'Michael Ross', role: 'Junior Dev', hourlyRate: 85 },
-        { name: 'Jessica Day', role: 'QA Engineer', hourlyRate: 90 }
-      ];
-
       const resRefs = [];
       for (const res of sampleResources) {
         const ref = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'resources'));
@@ -1211,51 +1316,23 @@ export default function App() {
         resRefs.push({ id: ref.id, ...res });
       }
 
-      // Sample Tasks/Projects
-      const now = new Date();
-      const nextWeek = new Date(now); nextWeek.setDate(now.getDate() + 7);
-      const nextMonth = new Date(now); nextMonth.setDate(now.getDate() + 30);
-      
-      const sampleTasks = [
-        { title: 'Digital Transformation', type: 'program', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0] },
-        { title: 'Website Redesign', type: 'project', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 0 },
-        { title: 'Mobile App Core', type: 'project', status: 'pending', startDate: nextWeek.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0], parentIndex: 0 },
-        { title: 'Design Home Page', type: 'task', status: 'completed', resourceIndex: 2, startDate: now.toISOString().split('T')[0], endDate: now.toISOString().split('T')[0], parentIndex: 1 },
-        { title: 'Implement Login API', type: 'task', status: 'in-progress', resourceIndex: 0, startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
-        { title: 'Setup CI/CD', type: 'task', status: 'pending', resourceIndex: 3, startDate: nextWeek.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
-      ];
-
       // Add parent items first to get IDs
       const programRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
-      batch.set(programRef, { 
-        ...sampleTasks[0], 
-        createdAt: serverTimestamp() 
-      });
+      batch.set(programRef, { ...sampleTasks[0], createdAt: serverTimestamp() });
 
       const projectRef1 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
-      batch.set(projectRef1, { 
-        ...sampleTasks[1], 
-        parentId: programRef.id,
-        createdAt: serverTimestamp() 
-      });
+      batch.set(projectRef1, { ...sampleTasks[1], parentId: programRef.id, createdAt: serverTimestamp() });
 
       const projectRef2 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
-      batch.set(projectRef2, { 
-        ...sampleTasks[2], 
-        parentId: programRef.id,
-        createdAt: serverTimestamp() 
-      });
+      batch.set(projectRef2, { ...sampleTasks[2], parentId: programRef.id, createdAt: serverTimestamp() });
 
       // Add leaf tasks
-      // Task 1: Design (Linked to Project 1)
       const task1 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
       batch.set(task1, { ...sampleTasks[3], parentId: projectRef1.id, resourceId: resRefs[2].id, createdAt: serverTimestamp() });
       
-      // Task 2: Login API (Linked to Project 1)
       const task2 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
       batch.set(task2, { ...sampleTasks[4], parentId: projectRef1.id, resourceId: resRefs[0].id, createdAt: serverTimestamp() });
 
-      // Task 3: CI/CD (Linked to Project 1) - Intentionally assign expensive Senior Dev (Sarah) to simple task for Enrichment demo
       const task3 = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
       batch.set(task3, { ...sampleTasks[5], parentId: projectRef1.id, resourceId: resRefs[0].id, createdAt: serverTimestamp() });
 
@@ -1267,7 +1344,7 @@ export default function App() {
     }
   };
 
-  if (!auth) return <ConfigurationHelp onRetry={handleRetryConnection} errorMsg={currentInitError} />;
+  if (!auth && !isDemoMode) return <ConfigurationHelp onRetry={handleRetryConnection} onDemoMode={handleDemoMode} errorMsg={currentInitError} />;
   if (loading) return <LoadingScreen message="Establishing secure connection..." />;
 
   const renderContent = () => {
@@ -1302,7 +1379,7 @@ export default function App() {
         );
       case 'settings':
         return (
-          <SettingsView onSeedData={seedData} isSeeding={isSeeding} />
+          <SettingsView onSeedData={() => seedData()} isSeeding={isSeeding} />
         );
       default:
         return <Dashboard tasks={tasks} resources={resources} />;
@@ -1311,7 +1388,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isDemoMode={isDemoMode} />
       
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Mobile Header */}
