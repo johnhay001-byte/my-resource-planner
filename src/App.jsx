@@ -133,23 +133,55 @@ const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) =>
     try {
       let input = manualInput.trim();
       
-      // 1. Remove comments
-      input = input.replace(/\/\/.*$/gm, '');
+      // 1. Remove comments (single line and block comments)
+      input = input.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
       
-      // 2. Find the object literal { ... }
-      const firstBrace = input.indexOf('{');
-      const lastBrace = input.lastIndexOf('}');
-      
-      if (firstBrace === -1 || lastBrace === -1) {
-        throw new Error("Could not find a configuration object {...} in the text.");
+      let configString = null;
+
+      // 2. Strategy A: Look specifically for "firebaseConfig = { ... }"
+      // This regex captures the content inside the braces
+      const varMatch = input.match(/firebaseConfig\s*=\s*(\{[\s\S]*?\})/);
+      if (varMatch && varMatch[1]) {
+        configString = varMatch[1];
+      }
+
+      // 3. Strategy B: If A fails, look for the block containing "apiKey"
+      if (!configString) {
+         const apiKeyIndex = input.indexOf('apiKey');
+         if (apiKeyIndex !== -1) {
+            // Walk backwards to find the nearest opening brace
+            let openBraceIndex = input.lastIndexOf('{', apiKeyIndex);
+            if (openBraceIndex !== -1) {
+               // Walk forwards to find the matching closing brace
+               let balance = 1;
+               let closeBraceIndex = -1;
+               for (let i = openBraceIndex + 1; i < input.length; i++) {
+                  if (input[i] === '{') balance++;
+                  if (input[i] === '}') balance--;
+                  if (balance === 0) {
+                     closeBraceIndex = i;
+                     break;
+                  }
+               }
+               if (closeBraceIndex !== -1) {
+                  configString = input.substring(openBraceIndex, closeBraceIndex + 1);
+               }
+            }
+         }
+      }
+
+      // 4. Strategy C: Assume the entire input is just the object
+      if (!configString && input.trim().startsWith('{')) {
+         configString = input;
+      }
+
+      if (!configString) {
+        throw new Error("Could not locate a valid configuration object in the text.");
       }
       
-      // Extract just the object part
-      const objectString = input.substring(firstBrace, lastBrace + 1);
-
-      // 3. Parse loosely using Function constructor (allows unquoted keys like apiKey: "...")
-      // This is safe here because it's client-side input from the user themselves.
-      const config = new Function(`return ${objectString}`)();
+      // 5. Parse loosely using Function constructor
+      // This allows unquoted keys (e.g. apiKey: "...") which JSON.parse would reject
+      const config = new Function(`return ${configString}`)();
       
       // Basic validation
       if (!config.apiKey || !config.projectId) {
@@ -159,7 +191,7 @@ const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) =>
       onManualConfig(config);
     } catch (e) {
       console.error(e);
-      setManualError("Could not parse configuration. Please check that you pasted the 'firebaseConfig' object correctly.");
+      setManualError("Could not parse configuration. Please make sure your paste includes the 'firebaseConfig' object.");
     }
   };
 
