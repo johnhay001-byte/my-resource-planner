@@ -30,7 +30,9 @@ import {
   TrendingDown,
   UserPlus,
   WifiOff,
-  Terminal
+  Terminal,
+  AlertTriangle,
+  Tag
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -133,26 +135,23 @@ const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) =>
     try {
       let input = manualInput.trim();
       
-      // 1. Remove comments (single line and block comments)
+      // 1. Remove comments
       input = input.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
       
       let configString = null;
 
-      // 2. Strategy A: Look specifically for "firebaseConfig = { ... }"
-      // This regex captures the content inside the braces
+      // 2. Strategy A: Look for firebaseConfig = { ... }
       const varMatch = input.match(/firebaseConfig\s*=\s*(\{[\s\S]*?\})/);
       if (varMatch && varMatch[1]) {
         configString = varMatch[1];
       }
 
-      // 3. Strategy B: If A fails, look for the block containing "apiKey"
+      // 3. Strategy B: Look for block with apiKey
       if (!configString) {
          const apiKeyIndex = input.indexOf('apiKey');
          if (apiKeyIndex !== -1) {
-            // Walk backwards to find the nearest opening brace
             let openBraceIndex = input.lastIndexOf('{', apiKeyIndex);
             if (openBraceIndex !== -1) {
-               // Walk forwards to find the matching closing brace
                let balance = 1;
                let closeBraceIndex = -1;
                for (let i = openBraceIndex + 1; i < input.length; i++) {
@@ -170,22 +169,19 @@ const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) =>
          }
       }
 
-      // 4. Strategy C: Assume the entire input is just the object
+      // 4. Strategy C: Assume pure object
       if (!configString && input.trim().startsWith('{')) {
          configString = input;
       }
 
       if (!configString) {
-        throw new Error("Could not locate a valid configuration object in the text.");
+        throw new Error("Could not locate a valid configuration object.");
       }
       
-      // 5. Parse loosely using Function constructor
-      // This allows unquoted keys (e.g. apiKey: "...") which JSON.parse would reject
       const config = new Function(`return ${configString}`)();
       
-      // Basic validation
       if (!config.apiKey || !config.projectId) {
-         throw new Error("Configuration object is missing required fields (apiKey, projectId).");
+         throw new Error("Configuration object is missing required fields.");
       }
 
       onManualConfig(config);
@@ -412,42 +408,105 @@ const EnrichmentView = ({ tasks, resources, onUpdateTask }) => {
     const generateInsights = () => {
       const insights = [];
       
-      // 1. Unassigned Task Optimization
-      const unassignedTasks = tasks.filter(t => !t.resourceId && t.type === 'task' && t.status !== 'completed');
-      unassignedTasks.forEach(task => {
-        // Simple logic: Find cheapest resource
-        const sortedResources = [...resources].sort((a, b) => a.hourlyRate - b.hourlyRate);
-        const bestMatch = sortedResources[0];
-        
-        if (bestMatch) {
-          insights.push({
-            id: `assign-${task.id}`,
-            type: 'assignment',
-            title: 'Unassigned Task Opportunity',
-            description: `"${task.title}" is currently unassigned. Assigning ${bestMatch.name} could save budget due to their competitive rate ($${bestMatch.hourlyRate}/hr).`,
-            action: 'Assign Resource',
-            icon: UserPlus,
-            color: 'text-blue-600',
-            bgColor: 'bg-blue-50',
-            taskId: task.id,
-            resourceId: bestMatch.id
-          });
-        }
-      });
-
-      // 2. Cost Optimization (High Rate on Simple Task)
+      // 1. Skill Gap Analysis (High Priority)
       const assignedTasks = tasks.filter(t => t.resourceId && t.type === 'task');
       assignedTasks.forEach(task => {
         const resource = resources.find(r => r.id === task.resourceId);
+        const required = task.requiredSkills || [];
+        
+        if (resource && required.length > 0) {
+           const rSkills = resource.skills || [];
+           const missing = required.filter(req => !rSkills.some(rs => rs.toLowerCase() === req.toLowerCase()));
+           
+           if (missing.length > 0) {
+             insights.push({
+               id: `gap-${task.id}`,
+               priority: 1,
+               type: 'risk',
+               title: 'Skill Gap Detected',
+               description: `${resource.name} is assigned to "${task.title}" but lacks required skills: ${missing.join(', ')}. This poses a risk to delivery.`,
+               action: 'Reassign',
+               icon: AlertTriangle,
+               color: 'text-amber-600',
+               bgColor: 'bg-amber-50',
+               taskId: task.id,
+               resourceId: null // Trigger reassign flow
+             });
+           }
+        }
+      });
+
+      // 2. Smart Assignment (Unassigned Tasks with Requirements)
+      const unassignedTasks = tasks.filter(t => !t.resourceId && t.type === 'task' && t.status !== 'completed');
+      unassignedTasks.forEach(task => {
+        const required = task.requiredSkills || [];
+        
+        if (required.length > 0) {
+           // Find resources with ALL required skills
+           const fullyQualified = resources.filter(r => {
+              const rSkills = r.skills || [];
+              return required.every(req => rSkills.some(rs => rs.toLowerCase() === req.toLowerCase()));
+           });
+
+           if (fullyQualified.length > 0) {
+              // Sort by rate (cheapest first)
+              const bestMatch = fullyQualified.sort((a, b) => a.hourlyRate - b.hourlyRate)[0];
+              insights.push({
+                id: `smart-assign-${task.id}`,
+                priority: 2,
+                type: 'assignment',
+                title: 'Perfect Skill Match',
+                description: `"${task.title}" requires ${required.join(', ')}. ${bestMatch.name} has these skills and is available at $${bestMatch.hourlyRate}/hr.`,
+                action: 'Assign Resource',
+                icon: Sparkles,
+                color: 'text-purple-600',
+                bgColor: 'bg-purple-50',
+                taskId: task.id,
+                resourceId: bestMatch.id
+              });
+           }
+        } else {
+           // Fallback to simple cheapest logic
+           const sortedResources = [...resources].sort((a, b) => a.hourlyRate - b.hourlyRate);
+           const bestMatch = sortedResources[0];
+           if (bestMatch) {
+             insights.push({
+                id: `assign-${task.id}`,
+                priority: 3,
+                type: 'assignment',
+                title: 'Unassigned Task Opportunity',
+                description: `"${task.title}" is unassigned. ${bestMatch.name} is your most cost-effective option at $${bestMatch.hourlyRate}/hr.`,
+                action: 'Assign Resource',
+                icon: UserPlus,
+                color: 'text-blue-600',
+                bgColor: 'bg-blue-50',
+                taskId: task.id,
+                resourceId: bestMatch.id
+             });
+           }
+        }
+      });
+
+      // 3. Cost Optimization (High Rate on Simple Task) - Only if skills match or aren't required
+      assignedTasks.forEach(task => {
+        const resource = resources.find(r => r.id === task.resourceId);
+        const required = task.requiredSkills || [];
+        
         if (resource && resource.hourlyRate > 150) {
-           // Find a cheaper alternative
-           const cheaper = resources.find(r => r.hourlyRate < 100 && r.role === resource.role);
+           // Find cheaper alternative that ALSO meets skill requirements
+           const cheaper = resources.find(r => {
+              const rSkills = r.skills || [];
+              const hasSkills = required.every(req => rSkills.some(rs => rs.toLowerCase() === req.toLowerCase()));
+              return r.hourlyRate < 100 && r.role === resource.role && hasSkills;
+           });
+
            if (cheaper) {
              insights.push({
                id: `optimize-${task.id}`,
+               priority: 4,
                type: 'optimization',
                title: 'Budget Optimization',
-               description: `${resource.name} ($${resource.hourlyRate}/hr) is assigned to "${task.title}". Switching to ${cheaper.name} ($${cheaper.hourlyRate}/hr) could reduce costs by ${(resource.hourlyRate - cheaper.hourlyRate)/resource.hourlyRate * 100}%.`,
+               description: `Switching "${task.title}" from ${resource.name} ($${resource.hourlyRate}) to ${cheaper.name} ($${cheaper.hourlyRate}) saves ${(resource.hourlyRate - cheaper.hourlyRate)/resource.hourlyRate * 100}% cost while maintaining skill requirements.`,
                action: 'Swap Resource',
                icon: TrendingDown,
                color: 'text-emerald-600',
@@ -459,15 +518,20 @@ const EnrichmentView = ({ tasks, resources, onUpdateTask }) => {
         }
       });
 
-      setRecommendations(insights);
+      setRecommendations(insights.sort((a, b) => a.priority - b.priority));
     };
 
     generateInsights();
   }, [tasks, resources]);
 
   const handleApply = (rec) => {
-    onUpdateTask(rec.taskId, { resourceId: rec.resourceId });
-    setRecommendations(prev => prev.filter(r => r.id !== rec.id));
+    if (rec.resourceId) {
+       onUpdateTask(rec.taskId, { resourceId: rec.resourceId });
+       setRecommendations(prev => prev.filter(r => r.id !== rec.id));
+    } else {
+       // Just a notification to reassign, maybe open modal (simplified here)
+       alert("Please go to Work Hub to reassign this task manually.");
+    }
   };
 
   return (
@@ -478,7 +542,7 @@ const EnrichmentView = ({ tasks, resources, onUpdateTask }) => {
             <Sparkles className="text-purple-600" />
             Enrichment Engine
           </h2>
-          <p className="text-slate-500 text-sm">AI-driven insights to optimize your resource allocation.</p>
+          <p className="text-slate-500 text-sm">AI-driven insights to optimize your resource allocation based on <span className="font-semibold text-purple-600">Skills</span> and <span className="font-semibold text-emerald-600">Cost</span>.</p>
         </div>
       </div>
 
@@ -487,7 +551,7 @@ const EnrichmentView = ({ tasks, resources, onUpdateTask }) => {
           <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-500">
             <CheckCircle2 size={48} className="mx-auto mb-4 text-emerald-500 opacity-50" />
             <h3 className="text-lg font-medium">All Systems Optimized</h3>
-            <p>No new enrichment opportunities found at this time.</p>
+            <p>No gaps, unassigned tasks, or cost savings found.</p>
           </div>
         ) : (
           recommendations.map(rec => (
@@ -497,7 +561,10 @@ const EnrichmentView = ({ tasks, resources, onUpdateTask }) => {
                   <rec.icon className={`${rec.color}`} size={24} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-800">{rec.title}</h4>
+                  <div className="flex items-center gap-2">
+                     <h4 className="font-bold text-slate-800">{rec.title}</h4>
+                     {rec.type === 'risk' && <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold uppercase">Risk</span>}
+                  </div>
                   <p className="text-slate-600 text-sm mt-1 max-w-2xl">{rec.description}</p>
                 </div>
               </div>
@@ -537,6 +604,7 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
   const [clientName, setClientName] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0]);
+  const [requiredSkills, setRequiredSkills] = useState('');
 
   const potentialParents = useMemo(() => {
     if (type === 'project') return items.filter(i => i.type === 'program');
@@ -556,12 +624,14 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
       clientName,
       startDate,
       endDate,
+      requiredSkills: requiredSkills.split(',').map(s => s.trim()).filter(s => s),
       createdAt: serverTimestamp()
     });
     onClose();
     setTitle('');
     setType('task');
     setParentId('');
+    setRequiredSkills('');
   };
 
   if (!isOpen) return null;
@@ -652,6 +722,19 @@ const AddWorkItemModal = ({ isOpen, onClose, onAdd, resources, items }) => {
              </div>
           </div>
 
+          {type === 'task' && (
+            <div>
+               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Required Skills (Comma separated)</label>
+               <input
+                 type="text"
+                 value={requiredSkills}
+                 onChange={(e) => setRequiredSkills(e.target.value)}
+                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                 placeholder="e.g. React, Python, UI Design"
+               />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Client (Optional)</label>
@@ -720,9 +803,18 @@ const WorkHub = ({ tasks, resources, onAddTask, onUpdateTask, onDeleteTask }) =>
                  <div className="mr-2 opacity-70">
                    <WorkItemIcon type={item.type || 'task'} isMilestone={item.isMilestone} />
                  </div>
-                 <span className={`text-sm ${item.type === 'program' ? 'font-bold text-slate-800' : item.type === 'project' ? 'font-semibold text-slate-700' : 'text-slate-600'}`}>
-                   {item.title}
-                 </span>
+                 <div className="flex flex-col">
+                    <span className={`text-sm ${item.type === 'program' ? 'font-bold text-slate-800' : item.type === 'project' ? 'font-semibold text-slate-700' : 'text-slate-600'}`}>
+                      {item.title}
+                    </span>
+                    {item.requiredSkills && item.requiredSkills.length > 0 && (
+                       <div className="flex flex-wrap gap-1 mt-1">
+                          {item.requiredSkills.map(skill => (
+                             <span key={skill} className="text-[9px] px-1 bg-slate-200 text-slate-600 rounded">{skill}</span>
+                          ))}
+                       </div>
+                    )}
+                 </div>
                </div>
              </td>
              <td className="py-3 px-4">
@@ -1055,7 +1147,7 @@ const SettingsView = ({ onSeedData, isSeeding }) => {
              <h3 className="text-lg font-bold text-slate-800">Test Data Seeder</h3>
           </div>
           <p className="text-slate-600 mb-6 text-sm">
-            Populate the application with sample resources, projects, and tasks to test the visualization features.
+            Populate the application with sample resources (including skills), projects, and tasks to test the visualization features.
             <br/><span className="text-xs text-amber-600 font-semibold mt-1 block">Note: This will add data, not replace existing data.</span>
           </p>
           
@@ -1077,6 +1169,7 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
   const [newResName, setNewResName] = useState('');
   const [newResRole, setNewResRole] = useState('Developer');
   const [newResRate, setNewResRate] = useState(100);
+  const [newResSkills, setNewResSkills] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1084,9 +1177,11 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
     onAddResource({ 
       name: newResName, 
       role: newResRole, 
-      hourlyRate: parseInt(newResRate) || 0 
+      hourlyRate: parseInt(newResRate) || 0,
+      skills: newResSkills.split(',').map(s => s.trim()).filter(s => s)
     });
     setNewResName('');
+    setNewResSkills('');
   };
 
   return (
@@ -1131,6 +1226,17 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
             />
           </div>
           
+          <div className="w-full md:w-64">
+             <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Skills (Comma separated)</label>
+             <input 
+              type="text" 
+              placeholder="e.g. React, Node, Design" 
+              value={newResSkills}
+              onChange={(e) => setNewResSkills(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
           <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full md:w-auto">
             Add
           </button>
@@ -1143,8 +1249,8 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
             <tr>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Skills</th>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</th>
-              <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
@@ -1157,14 +1263,17 @@ const ResourceList = ({ resources, onAddResource, onDeleteResource }) => {
                     {res.role}
                   </span>
                 </td>
+                <td className="px-6 py-4">
+                   <div className="flex flex-wrap gap-1">
+                      {res.skills && res.skills.map((skill, idx) => (
+                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                           {skill}
+                        </span>
+                      ))}
+                   </div>
+                </td>
                 <td className="px-6 py-4 text-slate-600 font-mono">
                   ${res.hourlyRate}/hr
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center">
-                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 mr-2"></div>
-                    <span className="text-sm text-slate-600">Available</span>
-                  </div>
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button 
@@ -1376,11 +1485,11 @@ export default function App() {
     
     // Sample Data
     const sampleResources = [
-      { name: 'Sarah Connor', role: 'Senior Dev', hourlyRate: 160 },
-      { name: 'John Smith', role: 'Project Manager', hourlyRate: 140 },
-      { name: 'Emily Chen', role: 'Designer', hourlyRate: 110 },
-      { name: 'Michael Ross', role: 'Junior Dev', hourlyRate: 85 },
-      { name: 'Jessica Day', role: 'QA Engineer', hourlyRate: 90 }
+      { name: 'Sarah Connor', role: 'Senior Dev', hourlyRate: 160, skills: ['React', 'Node.js', 'Architecture'] },
+      { name: 'John Smith', role: 'Project Manager', hourlyRate: 140, skills: ['Agile', 'Scrum', 'Jira'] },
+      { name: 'Emily Chen', role: 'Designer', hourlyRate: 110, skills: ['Figma', 'UI/UX', 'Prototyping'] },
+      { name: 'Michael Ross', role: 'Junior Dev', hourlyRate: 85, skills: ['HTML', 'CSS', 'JavaScript'] },
+      { name: 'Jessica Day', role: 'QA Engineer', hourlyRate: 90, skills: ['Testing', 'Cypress', 'Automation'] }
     ];
 
     const now = new Date();
@@ -1391,9 +1500,9 @@ export default function App() {
       { title: 'Digital Transformation', type: 'program', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0] },
       { title: 'Website Redesign', type: 'project', status: 'in-progress', startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 0 },
       { title: 'Mobile App Core', type: 'project', status: 'pending', startDate: nextWeek.toISOString().split('T')[0], endDate: nextMonth.toISOString().split('T')[0], parentIndex: 0 },
-      { title: 'Design Home Page', type: 'task', status: 'completed', resourceIndex: 2, startDate: now.toISOString().split('T')[0], endDate: now.toISOString().split('T')[0], parentIndex: 1 },
-      { title: 'Implement Login API', type: 'task', status: 'in-progress', resourceIndex: 0, startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
-      { title: 'Setup CI/CD', type: 'task', status: 'pending', resourceIndex: 3, startDate: nextWeek.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1 },
+      { title: 'Design Home Page', type: 'task', status: 'completed', resourceIndex: 2, startDate: now.toISOString().split('T')[0], endDate: now.toISOString().split('T')[0], parentIndex: 1, requiredSkills: ['Figma', 'UI/UX'] },
+      { title: 'Implement Login API', type: 'task', status: 'in-progress', resourceIndex: 0, startDate: now.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1, requiredSkills: ['Node.js', 'Security'] },
+      { title: 'Setup CI/CD', type: 'task', status: 'pending', resourceIndex: 3, startDate: nextWeek.toISOString().split('T')[0], endDate: nextWeek.toISOString().split('T')[0], parentIndex: 1, requiredSkills: ['DevOps'] },
     ];
 
     if (isDemoMode || forceDemo) {
