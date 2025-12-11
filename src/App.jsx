@@ -29,7 +29,8 @@ import {
   ArrowRight,
   TrendingDown,
   UserPlus,
-  WifiOff
+  WifiOff,
+  Terminal
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -80,9 +81,9 @@ const getFirebaseConfig = () => {
   }
 };
 
-const initFirebase = () => {
+const initFirebase = (manualConfig = null) => {
   try {
-    const config = getFirebaseConfig();
+    const config = manualConfig || getFirebaseConfig();
     if (!config) {
       if (!initError) initError = "Configuration not found in environment.";
       return false;
@@ -123,41 +124,96 @@ const formatDate = (date) => {
 
 // --- Components ---
 
-const ConfigurationHelp = ({ onRetry, onDemoMode, errorMsg }) => (
-  <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-    <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow-xl border border-red-100">
-      <div className="flex items-center space-x-3 mb-6">
-        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-          <AlertCircle className="text-red-600 w-6 h-6" />
+const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) => {
+  const [showManual, setShowManual] = useState(false);
+  const [manualInput, setManualInput] = useState('');
+  const [manualError, setManualError] = useState('');
+
+  const handleManualSubmit = () => {
+    try {
+      const config = JSON.parse(manualInput);
+      onManualConfig(config);
+    } catch (e) {
+      setManualError("Invalid JSON format. Please check your input.");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow-xl border border-red-100">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <AlertCircle className="text-red-600 w-6 h-6" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
         </div>
-        <h2 className="text-2xl font-bold text-slate-800">Connection Error</h2>
-      </div>
-      <p className="text-slate-600 mb-4 leading-relaxed">
-        The application could not connect to the cloud database. You can retry the connection or enter <strong>Demo Mode</strong> to use the application with local storage.
-      </p>
-      {errorMsg && (
-        <div className="bg-red-50 p-3 rounded-lg border border-red-100 mb-6">
-          <p className="text-xs font-mono text-red-700 break-words">{errorMsg}</p>
-        </div>
-      )}
-      <div className="space-y-3">
-        <button 
-          onClick={onRetry}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-        >
-          Retry Connection
-        </button>
-        <button 
-          onClick={onDemoMode}
-          className="w-full py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-        >
-          <WifiOff size={18} />
-          Enter Demo Mode (Offline)
-        </button>
+        
+        {!showManual ? (
+          <>
+            <p className="text-slate-600 mb-4 leading-relaxed">
+              The application could not connect to the cloud database automatically. 
+            </p>
+            {errorMsg && (
+              <div className="bg-red-50 p-3 rounded-lg border border-red-100 mb-6">
+                <p className="text-xs font-mono text-red-700 break-words">{errorMsg}</p>
+              </div>
+            )}
+            <div className="space-y-3">
+              <button 
+                onClick={onRetry}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Retry Auto-Connection
+              </button>
+              <button 
+                onClick={() => setShowManual(true)}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <Terminal size={18} />
+                Enter Configuration Manually
+              </button>
+              <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-slate-200"></div>
+                  <span className="flex-shrink mx-4 text-slate-400 text-xs">OR</span>
+                  <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+              <button 
+                onClick={onDemoMode}
+                className="w-full py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <WifiOff size={18} />
+                Use Demo Mode (Offline)
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between mb-2">
+               <label className="text-sm font-semibold text-slate-700">Paste Firebase Config JSON</label>
+               <button onClick={() => setShowManual(false)} className="text-xs text-blue-600 hover:underline">Cancel</button>
+            </div>
+            <p className="text-xs text-slate-500 mb-2">
+              Paste the object from your Firebase Console (Project Settings &gt; General &gt; Your apps &gt; SDK setup).
+            </p>
+            <textarea 
+              value={manualInput}
+              onChange={(e) => { setManualInput(e.target.value); setManualError(''); }}
+              className="w-full h-48 p-3 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none bg-slate-50"
+              placeholder='{ "apiKey": "...", "authDomain": "...", ... }'
+            />
+            {manualError && <p className="text-xs text-red-600 mt-2">{manualError}</p>}
+            <button 
+              onClick={handleManualSubmit}
+              className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Connect manually
+            </button>
+          </div>
+        )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const LoadingScreen = ({ message = "Loading..." }) => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 space-y-4">
@@ -1202,6 +1258,15 @@ export default function App() {
     seedData(true);
   };
 
+  const handleManualConfig = (config) => {
+    if (initFirebase(config)) {
+      setIsFirebaseReady(true);
+      setCurrentInitError(null);
+    } else {
+      setCurrentInitError("Could not initialize with provided configuration.");
+    }
+  };
+
   const addResource = async (data) => {
     if (isDemoMode) {
       setResources(prev => [{ id: `demo-${Date.now()}`, ...data }, ...prev]);
@@ -1344,7 +1409,7 @@ export default function App() {
     }
   };
 
-  if (!auth && !isDemoMode) return <ConfigurationHelp onRetry={handleRetryConnection} onDemoMode={handleDemoMode} errorMsg={currentInitError} />;
+  if (!auth && !isDemoMode) return <ConfigurationHelp onRetry={handleRetryConnection} onDemoMode={handleDemoMode} onManualConfig={handleManualConfig} errorMsg={currentInitError} />;
   if (loading) return <LoadingScreen message="Establishing secure connection..." />;
 
   const renderContent = () => {
