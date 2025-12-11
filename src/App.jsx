@@ -131,10 +131,35 @@ const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) =>
 
   const handleManualSubmit = () => {
     try {
-      const config = JSON.parse(manualInput);
+      let input = manualInput.trim();
+      
+      // 1. Remove comments
+      input = input.replace(/\/\/.*$/gm, '');
+      
+      // 2. Find the object literal { ... }
+      const firstBrace = input.indexOf('{');
+      const lastBrace = input.lastIndexOf('}');
+      
+      if (firstBrace === -1 || lastBrace === -1) {
+        throw new Error("Could not find a configuration object {...} in the text.");
+      }
+      
+      // Extract just the object part
+      const objectString = input.substring(firstBrace, lastBrace + 1);
+
+      // 3. Parse loosely using Function constructor (allows unquoted keys like apiKey: "...")
+      // This is safe here because it's client-side input from the user themselves.
+      const config = new Function(`return ${objectString}`)();
+      
+      // Basic validation
+      if (!config.apiKey || !config.projectId) {
+         throw new Error("Configuration object is missing required fields (apiKey, projectId).");
+      }
+
       onManualConfig(config);
     } catch (e) {
-      setManualError("Invalid JSON format. Please check your input.");
+      console.error(e);
+      setManualError("Could not parse configuration. Please check that you pasted the 'firebaseConfig' object correctly.");
     }
   };
 
@@ -189,17 +214,17 @@ const ConfigurationHelp = ({ onRetry, onDemoMode, onManualConfig, errorMsg }) =>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center justify-between mb-2">
-               <label className="text-sm font-semibold text-slate-700">Paste Firebase Config JSON</label>
+               <label className="text-sm font-semibold text-slate-700">Paste Firebase Config</label>
                <button onClick={() => setShowManual(false)} className="text-xs text-blue-600 hover:underline">Cancel</button>
             </div>
             <p className="text-xs text-slate-500 mb-2">
-              Paste the object from your Firebase Console (Project Settings &gt; General &gt; Your apps &gt; SDK setup).
+              Paste the full code snippet from your Firebase Console. We will extract the configuration automatically.
             </p>
             <textarea 
               value={manualInput}
               onChange={(e) => { setManualInput(e.target.value); setManualError(''); }}
               className="w-full h-48 p-3 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none bg-slate-50"
-              placeholder='{ "apiKey": "...", "authDomain": "...", ... }'
+              placeholder={'const firebaseConfig = {\n  apiKey: "AIza...",\n  authDomain: "..."\n};'}
             />
             {manualError && <p className="text-xs text-red-600 mt-2">{manualError}</p>}
             <button 
